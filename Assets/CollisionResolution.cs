@@ -1,18 +1,13 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.Experimental.GraphView;
 using UnityEngine;
+using UnityEngine.Experimental.AI;
 using UnityEngine.UIElements;
 using static UnityEditor.PlayerSettings;
-
-public enum GJKEvolution
-{
-    evolving = 0,
-    intersecting = 1,
-    notIntersecting = 2
-}
 
 public struct CollisionPacket
 {
@@ -31,6 +26,13 @@ public struct CollisionPacket
     }
 }
 
+public enum GJKEvolution
+{
+    evolving = 0,
+    intersecting = 1,
+    notIntersecting = 2
+}
+
 public struct Simplex
 {
     public List<Vector3> points;
@@ -39,6 +41,11 @@ public struct Simplex
     {
         points = new List<Vector3>();
     }
+}
+
+public struct Polytope
+{
+    List<Vector3> points;
 }
 
 public class CollisionResolution : MonoBehaviour
@@ -58,50 +65,35 @@ public class CollisionResolution : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        for(int i = 0; i < collidables.Length - 1; i++)
+        for (int i = 0; i < collidables.Length - 1; i++)
         {
-            for(int j = i + 1; j < collidables.Length; j++)
+            for (int j = i + 1; j < collidables.Length; j++)
             {
-                CollisionCheck(collidables[i], collidables[j]);
+                GJK(collidables[i], collidables[j]);
             }
         }
     }
 
-    CollisionPacket CollisionCheck(GameObject a, GameObject b)
+    CollisionPacket GJK(GameObject a, GameObject b)
     {
         CollisionPacket collision = new CollisionPacket();
         Simplex simp = new Simplex(0);
         Vector3[] shapeA = a.GetComponent<MeshFilter>().mesh.vertices.Distinct().ToArray();
         Vector3[] shapeB = b.GetComponent<MeshFilter>().mesh.vertices.Distinct().ToArray();
 
-       //for (int i = 0; i < shapeB.Length; i++)
-       //{
-       //    shapeB[i] = b.transform.TransformPoint(shapeB[i]);
-       //    testingOrbs[i].transform.position = shapeB[i];
-       //}
-
-        
-
-        //WorldToLocal
-        //for (int i = 0; i < shapeB.Length; i++)
-        //{
-        //    shapeB[i] = Matrix4x4.Rotate(b.transform.rotation) * shapeB[i];
-        //    shapeB[i] += b.transform.position;
-        //}
-
         //Collision Check
         direction = Vector3.right;
-        Vector3 support = CalculateSupport(shapeA, a.transform, shapeB, b.transform);
+        Vector3 support = CalculateSupport(shapeA, a.transform, shapeB, b.transform, direction);
         GJKEvolution gjking = AddSupportToSimplex(ref simp, support);
         direction = -support;
         int iter = 0;
-        while(gjking == GJKEvolution.evolving && iter < 100)
+        while (gjking == GJKEvolution.evolving && iter < 100)
         {
             iter++;
-            support = CalculateSupport(shapeA, a.transform, shapeB, b.transform);
+            support = CalculateSupport(shapeA, a.transform, shapeB, b.transform, direction);
             if (AddSupportToSimplex(ref simp, support) == GJKEvolution.evolving)
             {
-                gjking = EvolveSimplex(ref simp, shapeA, shapeB, ref collision);
+                gjking = EvolveSimplex(ref simp);
             }
             else
             {
@@ -109,21 +101,106 @@ public class CollisionResolution : MonoBehaviour
             }
         }
 
-        if(iter == 100)
+        if (iter == 100)
         {
             //TODO ADD CHECK SAT ON SIMPLEX
         }
 
         //Debuging Collision
-        if(gjking == GJKEvolution.intersecting)
+        if (gjking == GJKEvolution.intersecting || iter == 100)
         {
-            //a.GetComponent<Renderer>().material.color = Color.red;
-            //b.GetComponent<Renderer>().material.color = Color.red;
-            collision.normal = -Vector3.Normalize(Vector3.Dot(collision.normal, b.transform.position - a.transform.position) * collision.normal);
-            testingOrbs[0].transform.position = collision.worldContact;
-            a.transform.position += collision.normal * collision.depth;
-            Debug.Log("Normal is: " + collision.normal);
-            Debug.Log("depth is: " + collision.depth);
+            a.GetComponent<Renderer>().material.color = Color.red;
+            b.GetComponent<Renderer>().material.color = Color.red;
+
+
+            List<Vector3> polytope = simp.points;
+            List<int> faces = new List<int>
+            {
+                0, 1, 2,
+                0, 3, 1,
+                0, 2, 3,
+                1, 3, 2
+            };
+
+            int minFace = 0;
+            List<Vector4> normals = GetFaceNormals(polytope, faces,out minFace);
+
+            Vector3 minNormal = Vector3.up;
+            float minDistance = float.MaxValue;
+
+            while (minDistance == float.MaxValue)
+            {
+                minNormal = new Vector3(normals[minFace].x, normals[minFace].y, normals[minFace].z);
+                minDistance = normals[minFace].w;
+
+                Vector3 sup = CalculateSupport(shapeA, a.transform, shapeB, b.transform, minNormal);
+                float sDistance = Vector3.Dot(minNormal, support);
+
+                if(Mathf.Abs(sDistance - minDistance) > 0.001f)
+                {
+                    minDistance = float.MaxValue;
+                    List<Tuple<int, int>> uniqueEdges = new List<Tuple<int,int>>();
+                    for(int i = 0; i < normals.Count(); i++)
+                    {
+                        if (Mathf.Abs(Vector3.Dot(normals[i], sup)) <= 0.00001f)
+                        {
+                            int f = i * 3;
+                            AddIfUniqueEdge(ref uniqueEdges, faces, f + 0, f + 1);
+                            AddIfUniqueEdge(ref uniqueEdges, faces, f + 1, f + 2);
+                            AddIfUniqueEdge(ref uniqueEdges, faces, f + 1, f + 0);
+
+                            faces[f + 2] = faces[faces.Count - 1]; faces.RemoveAt(faces.Count - 1);
+                            faces[f + 1] = faces[faces.Count - 1]; faces.RemoveAt(faces.Count - 1);
+                            faces[f + 0] = faces[faces.Count - 1]; faces.RemoveAt(faces.Count - 1);
+
+                            normals[i] = normals[normals.Count() - 1];
+                            normals.RemoveAt(normals.Count() - 1);
+                            i--;
+                        }
+                    }
+
+                    List<int> newFaces = new List<int>();
+                    foreach(Tuple<int,int> edge in uniqueEdges)
+                    {
+                        newFaces.Add(edge.Item1);
+                        newFaces.Add(edge.Item2);
+                        newFaces.Add(polytope.Count());
+                    }
+
+                    polytope.Add(sup);
+
+                    int newMinFace;
+                    List<Vector4> newNormals = GetFaceNormals(polytope, newFaces, out newMinFace);
+                    float oldMinDistance = float.MaxValue;
+                    for(int i = 0; i < normals.Count(); i++)
+                    {
+                        if (normals[i].w < oldMinDistance)
+                        {
+                            oldMinDistance = normals[i].w;
+                            minFace = i;
+                        }
+                    }
+
+                    if (newNormals[newMinFace].w < oldMinDistance)
+                    {
+                        minFace = newMinFace + normals.Count();
+                    }
+
+                    foreach(int edge in newFaces)
+                    { 
+                        faces.Add(edge);
+                    }
+                    foreach(Vector4 normal in newNormals)
+                    {
+                        normals.Add(normal);
+                    }
+                }
+            }
+
+            collision.normal = new Vector3(minNormal.x, minNormal.y, minNormal.z);
+            collision.depth = minDistance;
+
+            a.transform.position -= collision.normal * collision.depth;
         }
         else
         {
@@ -131,12 +208,10 @@ public class CollisionResolution : MonoBehaviour
             b.GetComponent<Renderer>().material.color = Color.white;
         }
 
-        
-
         return collision;
     }
 
-    GJKEvolution EvolveSimplex(ref Simplex simp, Vector3[] a, Vector3[] b, ref CollisionPacket collision)
+    GJKEvolution EvolveSimplex(ref Simplex simp)
     {
         switch (simp.points.Count)
         {
@@ -145,9 +220,9 @@ public class CollisionResolution : MonoBehaviour
                 // line ab is the line formed by the first two vertices
                 Vector3 ab = simp.points[1] - simp.points[0];
                 // line a0 is the line from the first vertex to the origin
-                Vector3  dO = simp.points[0] * -1;
+                Vector3 dO = simp.points[0] * -1;
 
-                if(Vector3.Dot(ab, dO) > 0)
+                if (Vector3.Dot(ab, dO) > 0)
                 {
                     // use the triple-cross-product to calculate shapeA direction perpendicular
                     // to line ab in the direction of the origin
@@ -180,7 +255,7 @@ public class CollisionResolution : MonoBehaviour
 
                 // and the direction to the origin
                 dO = simp.points[3] * -1;
-               
+
                 // check triangles a-b-d, b-c-d, and c-a-d
                 Vector3 abdNorm = Vector3.Cross(da, db);
                 Vector3 bcdNorm = Vector3.Cross(db, dc);
@@ -188,59 +263,21 @@ public class CollisionResolution : MonoBehaviour
 
                 if (Vector3.Dot(bcdNorm, dO) > 0)
                 {
-                    // the origin is on the outside of triangle bcd
-                    // eliminate d!
                     simp.points.RemoveAt(0);
                     direction = bcdNorm;
                 }
                 else if (Vector3.Dot(abdNorm, dO) > 0)
                 {
-                    // the origin is on the outside of triangle a-b-d
-                    // eliminate c!
                     simp.points.RemoveAt(2);
                     direction = abdNorm;
                 }
                 else if (Vector3.Dot(cadNorm, dO) > 0)
                 {
-                    // the origin is on the outside of triangle cad
-                    // eliminate b!
                     simp.points.RemoveAt(1);
                     direction = cadNorm;
                 }
                 else
                 {
-                    float depth = -Vector3.Dot(bcdNorm, dO);
-                    Vector3 normal = -bcdNorm;
-
-                    float abdDepth = Vector3.Dot(-abdNorm, dO);
-                    if (abdDepth < depth)
-                    {
-                        normal = abdNorm;
-                        depth = abdDepth;
-                    }
-
-                    float cadDepth = Vector3.Dot(-cadNorm, dO);
-                    if (cadDepth < depth)
-                    {
-                        normal = cadNorm;
-                        depth = cadDepth;
-                    }
-
-                    ab = simp.points[1] - simp.points[0];
-                    ac = simp.points[2] - simp.points[0];
-                    Vector3 abcNorm = Vector3.Cross(ab, ac);
-                    float abcDepth = Vector3.Dot(-abcNorm, dO);
-                    if (abcDepth < depth)
-                    {
-                        normal = abcNorm;
-                        depth = abcDepth;
-                    }
-
-                    collision.normal = normal;
-                    collision.depth = depth;
-
-                    
-
                     // the origin is inside all of the triangles!
                     return GJKEvolution.intersecting;
                 }
@@ -254,15 +291,15 @@ public class CollisionResolution : MonoBehaviour
     }
 
     GJKEvolution AddSupportToSimplex(ref Simplex simp, Vector3 vert)
-    { 
+    {
         simp.points.Add(vert);
         return Vector3.Dot(direction, vert) >= 0 ? GJKEvolution.evolving : GJKEvolution.notIntersecting;
     }
 
-    Vector3 CalculateSupport(Vector3[] a, Transform aTransform, Vector3[] b, Transform bTransform)
+    Vector3 CalculateSupport(Vector3[] a, Transform aTransform, Vector3[] b, Transform bTransform, Vector3 dir)
     {
-        Vector3 localContactA = SupportFunction(aTransform.InverseTransformVector(direction), a);
-        Vector3 localContactB = SupportFunction(bTransform.InverseTransformVector(-direction), b);
+        Vector3 localContactA = SupportFunction(aTransform.InverseTransformVector(dir), a);
+        Vector3 localContactB = SupportFunction(bTransform.InverseTransformVector(-dir), b);
 
         Vector3 worldContactA = aTransform.TransformPoint(localContactA);
         Vector3 worldContactB = bTransform.TransformPoint(localContactB);
@@ -285,21 +322,50 @@ public class CollisionResolution : MonoBehaviour
         return vecs[index];
     }
 
-    void CalculateCollisionPoint(Vector3[] a, Transform aTransform, Vector3[] b, Transform bTransform, ref CollisionPacket collision)
+    List<Vector4> GetFaceNormals(List<Vector3> polytope, List<int> faces, out int face)
     {
-        Vector3 localA = SupportFunction(aTransform.InverseTransformVector(direction), a);
-        Vector3 localB = SupportFunction(bTransform.InverseTransformVector(-direction), b);
+        List<Vector4> normals = new List<Vector4>();
 
-        Vector3 worldA = aTransform.TransformPoint(localA);
-        Vector3 worldB = bTransform.TransformPoint(localB);
-
-        if (Vector3.Dot(Vector3.Normalize(worldA), direction) > Vector3.Dot(Vector3.Normalize(worldB), direction))
+        int minTriangle = 0;
+        float minDistance = float.MaxValue;
+        for(int i = 0; i < faces.Count; i+=3)
         {
-            collision.worldContact = worldA;
+            Vector3 a = polytope[faces[i]];
+            Vector3 b = polytope[faces[i+1]];
+            Vector3 c = polytope[faces[i+2]];
+
+            Vector3 normal = Vector3.Normalize(Vector3.Cross(b-a,c-a));
+            float distance = Vector3.Dot(normal, a);
+
+            if(distance < 0 )
+            {
+                normal *= -1;
+                distance *= -1;
+            }
+            Vector4 packet = new Vector4(normal.x, normal.y, normal.z, distance);
+            normals.Add(packet);
+
+            if(distance < minDistance)
+            {
+                minTriangle = i / 3;
+                minDistance = distance;
+            }
+        }
+        face = minTriangle;
+        return normals;
+    }
+
+    void AddIfUniqueEdge(ref List<Tuple<int, int>> edges, List<int> faces, int aVert, int bVert)
+    {
+        bool contains = edges.Contains(new Tuple<int, int>(faces[bVert], faces[aVert]) );
+        if (contains)
+        {
+            edges.Remove(new Tuple<int, int>(faces[bVert], faces[aVert]));
         }
         else
         {
-            collision.worldContact = worldB;
+            edges.Add(new Tuple<int, int>(faces[aVert], faces[bVert]));
         }
     }
 }
+

@@ -16,25 +16,17 @@ public struct Vertex
 
 public class Collidable : MonoBehaviour
 {
-    public Transform t; 
     public Vertex[] verticies;
-    private List<Vector3> points;
+    public float radius;
     // Start is called before the first frame update
     void Start()
     {
-        t = transform;
-        points = new List<Vector3>();
-        foreach (Vertex vert in verticies)
-            points.Add(vert.point);
+
     }
 
     // Update is called once per frame
     void Update()
     {
-        for(int i = 0; i < verticies.Length; i++)
-        {
-            verticies[i].point = (Matrix4x4.Rotate(transform.rotation) * Matrix4x4.Translate(transform.position)) * points[i];
-            verticies[i].point += transform.position;
-        }
+
     }
 }

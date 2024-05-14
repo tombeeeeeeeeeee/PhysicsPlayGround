@@ -107,10 +107,13 @@ public class CollisionResolution : MonoBehaviour
         }
 
         //Debuging Collision
-        if (gjking == GJKEvolution.intersecting || iter == 100)
+        if (gjking == GJKEvolution.intersecting)
         {
-            a.GetComponent<Renderer>().material.color = Color.red;
-            b.GetComponent<Renderer>().material.color = Color.red;
+            if (iter != 100)
+            {
+                a.GetComponent<Renderer>().material.color = Color.red;
+                b.GetComponent<Renderer>().material.color = Color.red;
+            }
 
 
             List<Vector3> polytope = simp.points;
@@ -133,7 +136,7 @@ public class CollisionResolution : MonoBehaviour
                 minNormal = new Vector3(normals[minFace].x, normals[minFace].y, normals[minFace].z);
                 minDistance = normals[minFace].w;
 
-                Vector3 sup = CalculateSupport(shapeA, a.transform, shapeB, b.transform, minNormal);
+                support = CalculateSupport(shapeA, a.transform, shapeB, b.transform, minNormal);
                 float sDistance = Vector3.Dot(minNormal, support);
 
                 if(Mathf.Abs(sDistance - minDistance) > 0.001f)
@@ -142,16 +145,17 @@ public class CollisionResolution : MonoBehaviour
                     List<Tuple<int, int>> uniqueEdges = new List<Tuple<int,int>>();
                     for(int i = 0; i < normals.Count(); i++)
                     {
-                        if (Mathf.Abs(Vector3.Dot(normals[i], sup)) <= 0.00001f)
+                        //if(Vector3.Dot(normals[i], support) > 0)
+                        if(Vector3.Dot(normals[i],support) > Vector3.Dot(normals[i],polytope[faces[i * 3]]))
                         {
                             int f = i * 3;
                             AddIfUniqueEdge(ref uniqueEdges, faces, f + 0, f + 1);
                             AddIfUniqueEdge(ref uniqueEdges, faces, f + 1, f + 2);
-                            AddIfUniqueEdge(ref uniqueEdges, faces, f + 1, f + 0);
+                            AddIfUniqueEdge(ref uniqueEdges, faces, f + 2, f + 0);
 
-                            faces[f + 2] = faces[faces.Count - 1]; faces.RemoveAt(faces.Count - 1);
-                            faces[f + 1] = faces[faces.Count - 1]; faces.RemoveAt(faces.Count - 1);
-                            faces[f + 0] = faces[faces.Count - 1]; faces.RemoveAt(faces.Count - 1);
+                            faces[f + 2] = faces[faces.Count() - 1]; faces.RemoveAt(faces.Count() - 1);
+                            faces[f + 1] = faces[faces.Count() - 1]; faces.RemoveAt(faces.Count() - 1);
+                            faces[f + 0] = faces[faces.Count() - 1]; faces.RemoveAt(faces.Count() - 1);
 
                             normals[i] = normals[normals.Count() - 1];
                             normals.RemoveAt(normals.Count() - 1);
@@ -167,7 +171,7 @@ public class CollisionResolution : MonoBehaviour
                         newFaces.Add(polytope.Count());
                     }
 
-                    polytope.Add(sup);
+                    polytope.Add(support);
 
                     int newMinFace;
                     List<Vector4> newNormals = GetFaceNormals(polytope, newFaces, out newMinFace);
@@ -197,10 +201,12 @@ public class CollisionResolution : MonoBehaviour
                 }
             }
 
-            collision.normal = new Vector3(minNormal.x, minNormal.y, minNormal.z);
-            collision.depth = minDistance;
+            collision.normal = Vector3.Normalize(new Vector3(minNormal.x, minNormal.y, minNormal.z) * Vector3.Dot(b.transform.position - a.transform.position, minNormal));
+            //collision.normal = new Vector3(minNormal.x, minNormal.y, minNormal.z);
+            collision.depth = minDistance;// + 0.0001f;
 
-            a.transform.position -= collision.normal * collision.depth;
+            if(minDistance > 0)
+                a.transform.position -= collision.normal * collision.depth;
         }
         else
         {

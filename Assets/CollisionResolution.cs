@@ -81,6 +81,16 @@ public class CollisionResolution : MonoBehaviour
         Vector3[] shapeA = a.GetComponent<MeshFilter>().mesh.vertices.Distinct().ToArray();
         Vector3[] shapeB = b.GetComponent<MeshFilter>().mesh.vertices.Distinct().ToArray();
 
+        for(int i = 0; i < shapeA.Length; i++)
+        {
+            shapeA[i] = a.transform.TransformPoint(shapeA[i]);
+        }
+
+        for (int i = 0; i < shapeB.Length; i++)
+        {
+            shapeB[i] = b.transform.TransformPoint(shapeB[i]);
+        }
+
         //Collision Check
         direction = Vector3.right;
         Vector3 support = CalculateSupport(shapeA, a.transform, shapeB, b.transform, direction);
@@ -109,12 +119,6 @@ public class CollisionResolution : MonoBehaviour
         //Debuging Collision
         if (gjking == GJKEvolution.intersecting)
         {
-            if (iter != 100)
-            {
-                a.GetComponent<Renderer>().material.color = Color.red;
-                b.GetComponent<Renderer>().material.color = Color.red;
-            }
-
 
             List<Vector3> polytope = simp.points;
             List<int> faces = new List<int>
@@ -145,7 +149,6 @@ public class CollisionResolution : MonoBehaviour
                     List<Tuple<int, int>> uniqueEdges = new List<Tuple<int,int>>();
                     for(int i = 0; i < normals.Count(); i++)
                     {
-                        //if(Vector3.Dot(normals[i], support) > 0)
                         if(Vector3.Dot(normals[i],support) > Vector3.Dot(normals[i],polytope[faces[i * 3]]))
                         {
                             int f = i * 3;
@@ -172,8 +175,8 @@ public class CollisionResolution : MonoBehaviour
                     }
 
                     polytope.Add(support);
-
-                    int newMinFace;
+                    //polytope = polytope.Distinct().ToList();
+                    int newMinFace = 0;
                     List<Vector4> newNormals = GetFaceNormals(polytope, newFaces, out newMinFace);
                     float oldMinDistance = float.MaxValue;
                     for(int i = 0; i < normals.Count(); i++)
@@ -185,10 +188,23 @@ public class CollisionResolution : MonoBehaviour
                         }
                     }
 
-                    if (newNormals[newMinFace].w < oldMinDistance)
+                    float newMinDistance = float.MaxValue;
+                    try
+                    {
+                        newMinDistance = newNormals[newMinFace].w;
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.Log(e.Message);
+                        newMinDistance = normals[newMinFace].w;
+                    }
+
+
+                    if (newMinDistance < oldMinDistance)
                     {
                         minFace = newMinFace + normals.Count();
                     }
+
 
                     foreach(int edge in newFaces)
                     { 
@@ -203,7 +219,7 @@ public class CollisionResolution : MonoBehaviour
 
             collision.normal = Vector3.Normalize(new Vector3(minNormal.x, minNormal.y, minNormal.z) * Vector3.Dot(b.transform.position - a.transform.position, minNormal));
             //collision.normal = new Vector3(minNormal.x, minNormal.y, minNormal.z);
-            collision.depth = minDistance;// + 0.0001f;
+            collision.depth = minDistance + 0.0001f;
 
             if(minDistance > 0)
                 a.transform.position -= collision.normal * collision.depth;
@@ -304,12 +320,15 @@ public class CollisionResolution : MonoBehaviour
 
     Vector3 CalculateSupport(Vector3[] a, Transform aTransform, Vector3[] b, Transform bTransform, Vector3 dir)
     {
-        Vector3 localContactA = SupportFunction(aTransform.InverseTransformVector(dir), a);
-        Vector3 localContactB = SupportFunction(bTransform.InverseTransformVector(-dir), b);
 
-        Vector3 worldContactA = aTransform.TransformPoint(localContactA);
-        Vector3 worldContactB = bTransform.TransformPoint(localContactB);
-        return worldContactA - worldContactB;
+        //Vector3 localContactA = SupportFunction(aTransform.InverseTransformDirection(dir), a);
+        //Vector3 localContactB = SupportFunction(bTransform.InverseTransformDirection(-dir), b);
+        //
+        //Vector3 worldContactA = aTransform.TransformPoint(localContactA);
+        //Vector3 worldContactB = bTransform.TransformPoint(localContactB);
+        //return worldContactA - worldContactB;
+
+        return SupportFunction(dir, a) - SupportFunction(-dir, b);
     }
 
     Vector3 SupportFunction(Vector3 dir, Vector3[] vecs)
@@ -334,7 +353,7 @@ public class CollisionResolution : MonoBehaviour
 
         int minTriangle = 0;
         float minDistance = float.MaxValue;
-        for(int i = 0; i < faces.Count; i+=3)
+        for(int i = 0; i < faces.Count(); i+=3)
         {
             Vector3 a = polytope[faces[i]];
             Vector3 b = polytope[faces[i+1]];

@@ -4,7 +4,6 @@ using System.Linq;
 using UnityEngine;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
-using System.Xml.Linq;
 
 public struct CollisionPacket
 {
@@ -61,24 +60,46 @@ public class CollisionResolution : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        //Intergration Step
+        for(int i = 0; i < collidables.Length; i++)
+        {
+            Intergration(collidables[i]);
+        }
+
+        //Collision Checks
         List<CollisionPacket> collisions = new List<CollisionPacket>();
+
+        //BroadPhase
         for (int i = 0; i < collidables.Length - 1; i++)
         {
             for (int j = i + 1; j < collidables.Length; j++)
             {
+                //NarrowPhase
                 if (collidables[i].invMass + collidables[j].invMass != 0)
-                    collisions.Add(GJK(collidables[i], collidables[j]));
+                    ShapeCollisionCheck(collidables[i], collidables[j], ref collisions);
             }
         }
 
+        //Collision Resolution
         foreach(CollisionPacket collision in collisions)
         {
             Resolution(collision);
         }
-        
-        foreach(Collidable col in collidables)
+    }
+
+    void ShapeCollisionCheck(Collidable a, Collidable b, ref List<CollisionPacket> collisions)
+    {
+        for (int i = 0; i < a.shapes.Count(); i++)
         {
-            //Update(col);
+            for(int j = 0; j < b.shapes.Count(); j++)
+            {
+                CollisionPacket collision = GJK(a.shapes[i], b.shapes[j], a.transform, b.transform);
+                collision.objectA = a;
+                collision.objectB = b;
+
+                if (collision.depth > 0)
+                    collisions.Add(collision);
+            }
         }
     }
 
@@ -86,12 +107,8 @@ public class CollisionResolution : MonoBehaviour
     {
         if (collision.depth < 0) return;
 
-        //Collision with Shapes rather than Physics Objects
-        //PhysicsObject* objectA = shapeA->parent;
-        //PhysicsObject* objectB = shapeB->parent;
-
-        Vector3 radiusPerpA = collision.objectA->GetRadiusPerp(contactPoint);
-        Vector3 radiusPerpB = collision.objectB->GetRadiusPerp(contactPoint);
+        Vector3 rA = collision.objectA.transform.position - collision.worldContact;
+        Vector3 rB = collision.objectB.transform.position - collision.worldContact;
 
         float totalMass = collision.objectA.invMass + collision.objectB.invMass;
 
@@ -99,16 +116,25 @@ public class CollisionResolution : MonoBehaviour
         AddDepen(-collision.normal * collision.depth * collision.objectB.invMass/totalMass, ref collision.objectB.netDepen);
 
         Vector3 relativeVelocity =
-              (collision.objectA.velocity + collision.objectA.angularVelocity * radiusPerpA)
-            - (collision.objectB.velocity + collision.objectB.angularVelocity * radiusPerpB);
+              (collision.objectA.velocity + Vector3.Cross(collision.objectA.angularVelocity,rA))
+            - (collision.objectB.velocity + Vector3.Cross(collision.objectB.angularVelocity,rB));
 
         float totalInverseMass = (collision.objectA.invMass + collision.objectB.invMass);
 
         float elasticCoef = collision.objectA.elasticCoef + collision.objectB.elasticCoef;
         elasticCoef /= 2;
+
+        //WORK AROUND REMOVE FOR CPP
+        float3 normal = new float3(collision.normal);
+
+        float3 aDenomComponent = math.mul(collision.objectA.invWorldIT , new float3(Vector3.Cross(rA,collision.normal)));
+        float3 bDenomComponent = math.mul(collision.objectA.invWorldIT , new float3(Vector3.Cross(rB,collision.normal)));
+        aDenomComponent = math.cross(aDenomComponent, rA);
+        bDenomComponent = math.cross(bDenomComponent, rB);
+        Vector3 denom = new Vector3(aDenomComponent.x + bDenomComponent.x, aDenomComponent.y + bDenomComponent.y, aDenomComponent.z + bDenomComponent.z);
+
         float j = -(1 + elasticCoef) * Vector3.Dot(relativeVelocity, collision.normal) /
-            (totalInverseMass + pow(Vector3.Dot(radiusPerpA, collision.normal), 2) * collision.objectA.invMomentOfInertia
-             + pow(Vector3.Dot(radiusPerpB, collision.normal), 2) * collision.objectB.invMomentOfInertia);
+            (totalInverseMass +Vector3.Dot(denom,normal));
 
         if (j <= 0) return;
 
@@ -122,6 +148,13 @@ public class CollisionResolution : MonoBehaviour
 
         if (abs(Vector3.Dot(radiusPerpB, collision.normal)) > 0.000001f)
             objectB->AddRotation(Vector3.Dot(radiusPerpB, -linearRestitution));
+
+        /*
+            Configuration.AngularMomentum += CrossProduct(R,Impulse);
+            // compute affected auxiliary quantities
+            Configuration.AngularVelocity = Configuration.InverseWorldInertiaTensor *
+            Configuration.AngularMomentum;
+         */
 
     }
 
@@ -145,29 +178,22 @@ public class CollisionResolution : MonoBehaviour
         }
     }
 
-    CollisionPacket GJK(Collidable a, Collidable b)
+    CollisionPacket GJK(Shape a, Shape b, Transform aTransform, Transform bTransform)
     {
         CollisionPacket collision = new CollisionPacket();
         Simplex simp = new Simplex(0);
         Vector3[] shapeA, shapeB;
-        if (a.verticies.Length == 0)
-            shapeA = a.gameObject.GetComponent<MeshFilter>().mesh.vertices.Distinct().ToArray();
-        else
-            shapeA = a.verticies.ToArray();
-
-        if (b.verticies.Length == 0)
-            shapeB = b.gameObject.GetComponent<MeshFilter>().mesh.vertices.Distinct().ToArray();
-        else
-            shapeB = b.verticies.ToArray();
+        shapeA = a.verticies.ToArray();
+        shapeB = b.verticies.ToArray();
 
         for(int i = 0; i < shapeA.Length; i++)
         {
-            shapeA[i] = a.transform.TransformPoint(shapeA[i]);
+            shapeA[i] = aTransform.TransformPoint(shapeA[i]);
         }
 
         for (int i = 0; i < shapeB.Length; i++)
         {
-            shapeB[i] = b.transform.TransformPoint(shapeB[i]);
+            shapeB[i] = bTransform.TransformPoint(shapeB[i]);
         }
 
         //Collision Check
@@ -194,16 +220,9 @@ public class CollisionResolution : MonoBehaviour
         { 
             Vector3 aContact, bContact;
             CalculateCollsionPoint(shapeA, a.radius, shapeB, b.radius, simp, out aContact, out bContact);
-            collision.worldContact = bContact/2  + aContact/2;
-            collision.objectA = a;
-            collision.objectB = b;
+            collision.worldContact = bContact / 2 + aContact / 2;
 
-            EPA(ref simp, ref collision, shapeA, a.radius, a.transform, shapeB, b.radius, b.transform);
-        }
-        else
-        {
-            a.GetComponent<Renderer>().material.color = Color.white;
-            b.GetComponent<Renderer>().material.color = Color.white;
+            EPA(ref simp, ref collision, shapeA, a.radius, aTransform, shapeB, b.radius, bTransform);
         }
 
         return collision;

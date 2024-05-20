@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEngine;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
+using Unity.VisualScripting;
 
 public struct CollisionPacket
 {
@@ -140,14 +141,16 @@ public class CollisionResolution : MonoBehaviour
 
         Vector3 linearRestitution = j * collision.normal;
 
-        AddImpulse(linearRestitution, ref collision.objectA);
-        AddImpulse(-linearRestitution, ref collision.objectB);
 
-        if (abs(Vector3.Dot(radiusPerpA, collision.normal)) > 0.000001f)
-            objectA->AddRotation(Vector3.Dot(radiusPerpA, linearRestitution));
+        collision.objectA.velocity += linearRestitution * collision.objectA.invMass;
+        collision.objectB.velocity -= linearRestitution * collision.objectB.invMass;
 
-        if (abs(Vector3.Dot(radiusPerpB, collision.normal)) > 0.000001f)
-            objectB->AddRotation(Vector3.Dot(radiusPerpB, -linearRestitution));
+
+        collision.objectA.angularMomentum += Vector3.Cross(rA, linearRestitution);
+        collision.objectB.angularMomentum += Vector3.Cross(rB, linearRestitution);
+
+        collision.objectA.angularVelocity = mul(collision.objectA.invWorldIT, collision.objectA.angularMomentum);
+        collision.objectB.angularVelocity = mul(collision.objectB.invWorldIT, collision.objectB.angularMomentum);
 
         /*
             Configuration.AngularMomentum += CrossProduct(R,Impulse);

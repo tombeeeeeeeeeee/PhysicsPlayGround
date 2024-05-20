@@ -15,28 +15,47 @@ public struct Shape
 
 public class Collidable : MonoBehaviour
 {
-    public Vector3 velocity;
-    public Vector3 netDepen;
-    public float invMass;
-    public float3x3 invBodyIT;
-    public float3x3 invWorldIT;
-    public float elasticCoef;
-    public Vector3 centreOfMass;
-    public Vector3 angularVelocity;
+    [HideInInspector]public Vector3 velocity;
+    [HideInInspector]public Vector3 netDepen;
+    [HideInInspector]public float3x3 invBodyIT;
+    [HideInInspector]public float3x3 invWorldIT;
+    [HideInInspector]public float elasticCoef;
+    [HideInInspector]public Vector3 angularVelocity;
+    [HideInInspector]public Vector3 angularMomentum;
 
     private float dX, dY, dZ;
     public List<Shape> shapes;
+    public float invMass;
+    public Vector3 centreOfMass = Vector3.zero;
 
     // Start is called before the first frame update
     void Start()
     {
         velocity = Vector3.zero;
         netDepen = Vector3.zero;
-        invMass = 0;
-        elasticCoef = 0;
-        centreOfMass = Vector3.zero;
         angularVelocity = Vector3.zero;
-        dX = 0; dY = 0; dZ = 0;
+        angularMomentum = Vector3.zero;
+
+        foreach(Shape shape in shapes)
+        {
+            foreach(Vector3 vertex in shape.verticies)
+            {
+                if(vertex.x + shape.radius > dX) dX = vertex.x + shape.radius;
+                if(vertex.y + shape.radius > dY) dY = vertex.y + shape.radius;
+                if(vertex.z + shape.radius > dZ) dZ = vertex.z + shape.radius;
+            }
+        }
+
+        dX *= dX; dY *= dY; dZ *= dZ;
+
+        invBodyIT = new float3x3(
+            3 * invMass / (dY + dZ), 0 , 0,
+            0, 3 * invMass / (dX + dZ), 0,
+            0, 0, 3 * invMass / (dX + dY)
+            );
+
+        invWorldIT = math.mul(math.mul(transform.rotation.));
+
     }
 
     // Update is called once per frame

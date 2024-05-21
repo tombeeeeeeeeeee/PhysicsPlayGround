@@ -15,11 +15,14 @@ public struct Shape
 
 public class Collidable : MonoBehaviour
 {
-    [HideInInspector]public Vector3 velocity;
+    public Vector3 momentOfInertia = new Vector3(3,3,3);
+
+    [HideInInspector]public Vector3 force;
+    [HideInInspector]public Vector3 velocity = Vector3.zero;
     [HideInInspector]public Vector3 netDepen;
     [HideInInspector]public float3x3 invBodyIT;
     [HideInInspector]public float3x3 invWorldIT;
-    [HideInInspector]public float elasticCoef;
+    [HideInInspector]public Vector3 torque;
     [HideInInspector]public Vector3 angularVelocity;
     [HideInInspector]public Vector3 angularMomentum;
 
@@ -27,6 +30,8 @@ public class Collidable : MonoBehaviour
     public List<Shape> shapes;
     public float invMass;
     public Vector3 centreOfMass = Vector3.zero;
+    public bool isGravitated = false;
+    public float elasticCoef = 1; //0.65f;
 
     // Start is called before the first frame update
     void Start()
@@ -40,21 +45,23 @@ public class Collidable : MonoBehaviour
         {
             foreach(Vector3 vertex in shape.verticies)
             {
-                if(vertex.x + shape.radius > dX) dX = vertex.x + shape.radius;
-                if(vertex.y + shape.radius > dY) dY = vertex.y + shape.radius;
-                if(vertex.z + shape.radius > dZ) dZ = vertex.z + shape.radius;
+                Vector3 vertWorld = transform.TransformPoint(vertex);
+                if(Math.Abs(vertWorld.x) + shape.radius > dX) dX = Math.Abs(vertWorld.x) + shape.radius;
+                if(Math.Abs(vertWorld.y) + shape.radius > dY) dY = Math.Abs(vertWorld.y) + shape.radius;
+                if(Math.Abs(vertWorld.z) + shape.radius > dZ) dZ = Math.Abs(vertWorld.z) + shape.radius;
             }
         }
 
         dX *= dX; dY *= dY; dZ *= dZ;
 
         invBodyIT = new float3x3(
-            3 * invMass / (dY + dZ), 0 , 0,
-            0, 3 * invMass / (dX + dZ), 0,
-            0, 0, 3 * invMass / (dX + dY)
-            );
+            (momentOfInertia.x / (invMass+0.0001f)) / (dY + dZ), 0, 0,
+            0, (momentOfInertia.y / (invMass+0.0001f)) / (dX + dZ), 0,
+            0, 0, (momentOfInertia.z / (invMass+0.0001f) ) / (dX + dY)
+        );
 
-        invWorldIT = math.mul(math.mul(transform.rotation.));
+        //invWorldIT = math.mul(math.mul(invBodyIT, new float3x3(transform.rotation)), math.transpose(invBodyIT)));
+        invWorldIT = math.mul(invBodyIT, math.mul(new float3x3(transform.rotation), math.transpose(invBodyIT)));
 
     }
 

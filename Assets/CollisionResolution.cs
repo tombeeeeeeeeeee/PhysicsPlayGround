@@ -4,7 +4,7 @@ using System.Linq;
 using UnityEngine;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
-using Unity.VisualScripting;
+
 
 public struct CollisionPacket
 {
@@ -48,9 +48,11 @@ public struct Simplex
 public class CollisionResolution : MonoBehaviour
 {
 
+    public Vector3 gravity = new Vector3(0, -9.8f, 0);
     public GameObject[] testingOrbs;
 
     public Collidable[] collidables;
+
 
     // Start is called before the first frame update
     void Start()
@@ -77,7 +79,9 @@ public class CollisionResolution : MonoBehaviour
             {
                 //NarrowPhase
                 if (collidables[i].invMass + collidables[j].invMass != 0)
+                {
                     ShapeCollisionCheck(collidables[i], collidables[j], ref collisions);
+                }
             }
         }
 
@@ -86,6 +90,62 @@ public class CollisionResolution : MonoBehaviour
         {
             Resolution(collision);
         }
+    }
+
+    private void Intergration(Collidable collidable)
+    {
+        if (collidable.isGravitated && collidable.invMass != 0)
+        {
+            collidable.force += gravity / collidable.invMass;
+        }
+
+        collidable.velocity += Time.deltaTime * collidable.invMass * collidable.force;
+        collidable.angularMomentum += Time.deltaTime * collidable.torque;
+        collidable.angularVelocity = math.mul(collidable.invWorldIT, collidable.angularMomentum);
+
+        collidable.transform.position += collidable.netDepen;
+        collidable.netDepen = Vector3.zero;
+
+        collidable.transform.position += Time.deltaTime * collidable.velocity;
+        float3x3 angVel = new float3x3(
+            0, -collidable.angularVelocity.z, collidable.angularVelocity.y,
+            collidable.angularVelocity.z, 0, -collidable.angularVelocity.x,
+            -collidable.angularVelocity.y, collidable.angularVelocity.x, 0
+            );
+
+        angVel *= Time.deltaTime;
+
+        float3x3 rotation = math.mul(angVel, new float3x3(collidable.transform.rotation));
+        //collidable.transform.rotation *= OrthonormalizeOrientation(rotation);
+        collidable.transform.rotation *= quaternion(rotation);
+
+
+        //collidable.invWorldIT = math.mul(math.mul(collidable.invBodyIT, new float3x3(transform.rotation)), math.transpose(collidable.invBodyIT));
+        collidable.invWorldIT = math.mul(collidable.invBodyIT, math.mul(new float3x3(collidable.transform.rotation), math.transpose(collidable.invBodyIT))); 
+
+        collidable.torque = Vector3.zero;
+        collidable.force = Vector3.zero;
+    }
+
+    private Quaternion OrthonormalizeOrientation(float3x3 rotation)
+    {
+        Vector3 X = new Vector3(rotation[0][0], rotation[0][1], rotation[0][2]);
+        Vector3 Y = new Vector3(rotation[1][0], rotation[1][1], rotation[1][2]);
+        Vector3 Z;
+
+        Z = Vector3.Cross(X, Y);
+        Y = Vector3.Cross(Z, X);
+        X.Normalize();
+        Y.Normalize();
+        Z.Normalize();
+
+        float3x3 orientation = new float3x3(
+            X.x, Y.x, Z.x,
+            X.y, Y.y, Z.y,
+            X.z, Y.z, Z.z
+            );
+
+        return quaternion(orientation);
     }
 
     void ShapeCollisionCheck(Collidable a, Collidable b, ref List<CollisionPacket> collisions)
@@ -108,6 +168,8 @@ public class CollisionResolution : MonoBehaviour
     {
         if (collision.depth < 0) return;
 
+        collision.normal *= sign(Vector3.Dot(collision.normal,collision.objectA.transform.position - collision.objectB.transform.position));
+        collision.normal.Normalize();
         Vector3 rA = collision.objectA.transform.position - collision.worldContact;
         Vector3 rB = collision.objectB.transform.position - collision.worldContact;
 
@@ -135,9 +197,9 @@ public class CollisionResolution : MonoBehaviour
         Vector3 denom = new Vector3(aDenomComponent.x + bDenomComponent.x, aDenomComponent.y + bDenomComponent.y, aDenomComponent.z + bDenomComponent.z);
 
         float j = -(1 + elasticCoef) * Vector3.Dot(relativeVelocity, collision.normal) /
-            (totalInverseMass +Vector3.Dot(denom,normal));
+            (totalInverseMass + Vector3.Dot(denom, normal));
 
-        if (j <= 0) return;
+        if (j < 0) return;
 
         Vector3 linearRestitution = j * collision.normal;
 
@@ -145,20 +207,17 @@ public class CollisionResolution : MonoBehaviour
         collision.objectA.velocity += linearRestitution * collision.objectA.invMass;
         collision.objectB.velocity -= linearRestitution * collision.objectB.invMass;
 
-
-        collision.objectA.angularMomentum += Vector3.Cross(rA, linearRestitution);
-        collision.objectB.angularMomentum += Vector3.Cross(rB, linearRestitution);
-
-        collision.objectA.angularVelocity = mul(collision.objectA.invWorldIT, collision.objectA.angularMomentum);
-        collision.objectB.angularVelocity = mul(collision.objectB.invWorldIT, collision.objectB.angularMomentum);
-
-        /*
-            Configuration.AngularMomentum += CrossProduct(R,Impulse);
-            // compute affected auxiliary quantities
-            Configuration.AngularVelocity = Configuration.InverseWorldInertiaTensor *
-            Configuration.AngularMomentum;
-         */
-
+        if(abs(Vector3.Dot(normal,rA)) > 0.01f)
+        {
+            collision.objectA.angularMomentum += Vector3.Cross(rA, linearRestitution);
+            collision.objectA.angularVelocity = mul(collision.objectA.invWorldIT, collision.objectA.angularMomentum);
+        }
+        
+        if (abs(Vector3.Dot(normal, rB)) > 0.01f)
+        {
+            collision.objectB.angularMomentum += Vector3.Cross(rB, linearRestitution);
+            collision.objectB.angularVelocity = mul(collision.objectB.invWorldIT, collision.objectB.angularMomentum);
+        }
     }
 
     void AddDepen(Vector3 newDepen, ref Vector3 currDepen)

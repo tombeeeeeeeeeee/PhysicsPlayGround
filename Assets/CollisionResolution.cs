@@ -72,15 +72,18 @@ public class CollisionResolution : MonoBehaviour
         //Collision Checks
         List<CollisionPacket> collisions = new List<CollisionPacket>();
 
-        //BroadPhase
-        for (int i = 0; i < collidables.Length - 1; i++)
+        for(int iter = 0; iter < 10; iter++)
         {
-            for (int j = i + 1; j < collidables.Length; j++)
+            //BroadPhase
+            for (int i = 0; i < collidables.Length - 1; i++)
             {
-                //NarrowPhase
-                if (collidables[i].invMass + collidables[j].invMass != 0)
+                for (int j = i + 1; j < collidables.Length; j++)
                 {
-                    ShapeCollisionCheck(collidables[i], collidables[j], ref collisions);
+                    //NarrowPhase
+                    if (collidables[i].invMass + collidables[j].invMass != 0)
+                    {
+                        ShapeCollisionCheck(collidables[i], collidables[j], ref collisions);
+                    }
                 }
             }
         }
@@ -107,6 +110,7 @@ public class CollisionResolution : MonoBehaviour
         collidable.netDepen = Vector3.zero;
 
         collidable.transform.position += Time.deltaTime * collidable.velocity;
+
         float3x3 angVel = new float3x3(
             0, -collidable.angularVelocity.z, collidable.angularVelocity.y,
             collidable.angularVelocity.z, 0, -collidable.angularVelocity.x,
@@ -115,13 +119,15 @@ public class CollisionResolution : MonoBehaviour
 
         angVel *= Time.deltaTime;
 
+
         float3x3 rotation = math.mul(angVel, new float3x3(collidable.transform.rotation));
-        //collidable.transform.rotation *= OrthonormalizeOrientation(rotation);
-        collidable.transform.rotation *= quaternion(rotation);
+        rotation += new float3x3(collidable.transform.rotation);
+        collidable.transform.rotation = OrthonormalizeOrientation(rotation);
 
 
-        //collidable.invWorldIT = math.mul(math.mul(collidable.invBodyIT, new float3x3(transform.rotation)), math.transpose(collidable.invBodyIT));
-        collidable.invWorldIT = math.mul(collidable.invBodyIT, math.mul(new float3x3(collidable.transform.rotation), math.transpose(collidable.invBodyIT))); 
+
+        collidable.invWorldIT = math.mul(math.mul(collidable.invBodyIT, new float3x3(transform.rotation)), math.transpose(collidable.invBodyIT));
+        //collidable.invWorldIT = math.mul(collidable.invBodyIT, math.mul(new float3x3(collidable.transform.rotation), math.transpose(collidable.invBodyIT))); 
 
         collidable.torque = Vector3.zero;
         collidable.force = Vector3.zero;
@@ -170,8 +176,10 @@ public class CollisionResolution : MonoBehaviour
 
         collision.normal *= sign(Vector3.Dot(collision.normal,collision.objectA.transform.position - collision.objectB.transform.position));
         collision.normal.Normalize();
-        Vector3 rA = collision.objectA.transform.position - collision.worldContact;
-        Vector3 rB = collision.objectB.transform.position - collision.worldContact;
+        //Vector3 rA = collision.objectA.transform.position - collision.worldContact;
+        Vector3 rA = collision.tangentB - collision.objectA.transform.position;
+        //Vector3 rB = collision.objectB.transform.position - collision.worldContact;
+        Vector3 rB = collision.tangentA - collision.objectB.transform.position;
 
         float totalMass = collision.objectA.invMass + collision.objectB.invMass;
 
@@ -191,9 +199,11 @@ public class CollisionResolution : MonoBehaviour
         float3 normal = new float3(collision.normal);
 
         float3 aDenomComponent = math.mul(collision.objectA.invWorldIT , new float3(Vector3.Cross(rA,collision.normal)));
-        float3 bDenomComponent = math.mul(collision.objectA.invWorldIT , new float3(Vector3.Cross(rB,collision.normal)));
+        float3 bDenomComponent = math.mul(collision.objectB.invWorldIT , new float3(Vector3.Cross(rB,collision.normal)));
+
         aDenomComponent = math.cross(aDenomComponent, rA);
         bDenomComponent = math.cross(bDenomComponent, rB);
+
         Vector3 denom = new Vector3(aDenomComponent.x + bDenomComponent.x, aDenomComponent.y + bDenomComponent.y, aDenomComponent.z + bDenomComponent.z);
 
         float j = -(1 + elasticCoef) * Vector3.Dot(relativeVelocity, collision.normal) /
@@ -203,21 +213,20 @@ public class CollisionResolution : MonoBehaviour
 
         Vector3 linearRestitution = j * collision.normal;
 
-
         collision.objectA.velocity += linearRestitution * collision.objectA.invMass;
         collision.objectB.velocity -= linearRestitution * collision.objectB.invMass;
 
-        if(abs(Vector3.Dot(normal,rA)) > 0.01f)
-        {
-            collision.objectA.angularMomentum += Vector3.Cross(rA, linearRestitution);
+        //if(abs(Vector3.Dot(normal,rA)) > 0.00001f && collision.objectA.momentOfInertia.sqrMagnitude != 0)
+        //{
+            collision.objectA.angularMomentum = Vector3.Cross(rA, linearRestitution);
             collision.objectA.angularVelocity = mul(collision.objectA.invWorldIT, collision.objectA.angularMomentum);
-        }
-        
-        if (abs(Vector3.Dot(normal, rB)) > 0.01f)
-        {
-            collision.objectB.angularMomentum += Vector3.Cross(rB, linearRestitution);
+        //}
+
+        //if (abs(Vector3.Dot(normal, rB)) > 0.00001f && collision.objectB.momentOfInertia.sqrMagnitude != 0)
+        //{
+            collision.objectB.angularMomentum = Vector3.Cross(rB, -linearRestitution);
             collision.objectB.angularVelocity = mul(collision.objectB.invWorldIT, collision.objectB.angularMomentum);
-        }
+       // }
     }
 
     void AddDepen(Vector3 newDepen, ref Vector3 currDepen)
@@ -282,6 +291,8 @@ public class CollisionResolution : MonoBehaviour
         { 
             Vector3 aContact, bContact;
             CalculateCollsionPoint(shapeA, a.radius, shapeB, b.radius, simp, out aContact, out bContact);
+            collision.tangentA = aContact;
+            collision.tangentB = bContact;
             collision.worldContact = bContact / 2 + aContact / 2;
 
             EPA(ref simp, ref collision, shapeA, a.radius, aTransform, shapeB, b.radius, bTransform);

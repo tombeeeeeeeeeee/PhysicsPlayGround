@@ -54,14 +54,17 @@ public class Collidable : MonoBehaviour
 
         dX *= dX; dY *= dY; dZ *= dZ;
 
-        invBodyIT = new float3x3(
-            (momentOfInertia.x / (invMass+0.0001f)) / (dY + dZ), 0, 0,
-            0, (momentOfInertia.y / (invMass+0.0001f)) / (dX + dZ), 0,
-            0, 0, (momentOfInertia.z / (invMass+0.0001f) ) / (dX + dY)
-        );
 
-        //invWorldIT = math.mul(math.mul(invBodyIT, new float3x3(transform.rotation)), math.transpose(invBodyIT)));
-        invWorldIT = math.mul(invBodyIT, math.mul(new float3x3(transform.rotation), math.transpose(invBodyIT)));
+        if(invMass > 0) { 
+            invBodyIT = new float3x3(
+                (momentOfInertia.x * (invMass)) / (dY + dZ), 0, 0,
+                0, (momentOfInertia.y * (invMass)) / (dX + dZ), 0,
+                0, 0, (momentOfInertia.z * (invMass ) ) / (dX + dY)
+            );
+       }
+
+        invWorldIT = math.mul(math.mul(invBodyIT, new float3x3(transform.rotation)), math.transpose(invBodyIT));
+        //invWorldIT = math.mul(invBodyIT, math.mul(new float3x3(transform.rotation), math.transpose(invBodyIT)));
 
     }
 

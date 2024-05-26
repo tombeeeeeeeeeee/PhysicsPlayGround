@@ -57,9 +57,9 @@ public class Collidable : MonoBehaviour
 
         if(invMass > 0) { 
             invBodyIT = new float3x3(
-                (momentOfInertia.x * (invMass)) / (dY + dZ), 0, 0,
-                0, (momentOfInertia.y * (invMass)) / (dX + dZ), 0,
-                0, 0, (momentOfInertia.z * (invMass ) ) / (dX + dY)
+                (momentOfInertia.x * invMass * 12) / (dY + dZ), 0, 0,
+                0, (momentOfInertia.y * invMass * 12) / (dX + dZ), 0,
+                0, 0, (momentOfInertia.z * invMass * 12) / (dX + dY)
             );
        }
 

@@ -72,7 +72,7 @@ public class CollisionResolution : MonoBehaviour
         //Collision Checks
         List<CollisionPacket> collisions = new List<CollisionPacket>();
 
-        for(int iter = 0; iter < 10; iter++)
+        for(int iter = 0; iter < 1; iter++)
         {
             //BroadPhase
             for (int i = 0; i < collidables.Length - 1; i++)
@@ -198,9 +198,7 @@ public class CollisionResolution : MonoBehaviour
 
         float totalInverseMass = (collision.objectA.invMass + collision.objectB.invMass);
 
-        //Add depenertration to collidable, ensures too much depenertration per frame doesnt occure
-        AddDepen(collision.normal * (collision.depth) * collision.objectA.invMass/ totalInverseMass, ref collision.objectA.netDepen);
-        AddDepen(-collision.normal * (collision.depth) * collision.objectB.invMass/ totalInverseMass, ref collision.objectB.netDepen);
+       
 
         // Relative Vel = Liner Vel and Angular Vel at point of Collision
         Vector3 relativeVelocity =
@@ -220,10 +218,15 @@ public class CollisionResolution : MonoBehaviour
 
         float denom = aDenomComponentFloat + bDenomComponentFloat;
 
-        float j = -(1/*elasticCoef*/) * Vector3.Dot(relativeVelocity, collision.normal) /
+        float j = -(1 + elasticCoef) * Vector3.Dot(relativeVelocity, collision.normal) /
             (totalInverseMass + denom);
          
         if (j < 0) return;
+
+        //Add depenertration to collidable, ensures too much depenertration per frame doesnt occure
+        AddDepen(collision.normal * (collision.depth) * collision.objectA.invMass / totalInverseMass, ref collision.objectA.netDepen);
+        AddDepen(-collision.normal * (collision.depth) * collision.objectB.invMass / totalInverseMass, ref collision.objectB.netDepen);
+
 
         Vector3 linearRestitution = j * collision.normal;
 
@@ -236,13 +239,17 @@ public class CollisionResolution : MonoBehaviour
         collision.objectA.angularMomentum += angularRestitutionA;
         collision.objectB.angularMomentum -= angularRestitutionB;
 
+
         //Yes I think you're correct that these shuold be as they are (one plus, one minus) -Finn
     }
 
     void AddDepen(Vector3 newDepen, ref Vector3 currDepen)
     {
-        if (abs(newDepen.x) + abs(newDepen.y) + abs(newDepen.z) <= 0.000001f) return;
-        if (Vector3.Dot(newDepen, currDepen) <= 0.000001f)
+        if (newDepen.sqrMagnitude <= 0.0000001f)
+        {
+            return;
+        }
+        if (Vector3.Dot(newDepen, currDepen) <= 0.0000001f)
         {
             currDepen = newDepen + currDepen;
         }
@@ -251,11 +258,15 @@ public class CollisionResolution : MonoBehaviour
             Vector3 normalNet = Vector3.Normalize(currDepen);
             float amountAlreadyDepened = Vector3.Dot(normalNet, newDepen);
             Vector3 changeInNet = currDepen - amountAlreadyDepened * normalNet;
+
             if (Vector3.Dot(changeInNet, currDepen) < 0)
             {
                 currDepen = newDepen;
             }
-            else currDepen = changeInNet + newDepen;
+            else
+            {
+                currDepen = changeInNet + newDepen;
+            }
         }
     }
 

@@ -4,17 +4,19 @@ using UnityEngine;
 
 public class Moving : MonoBehaviour
 {
-    public float moveSpeed = 5;
-    public float arcLength = 5;
+    public Vector3 vel;
+
+    Collidable col;
+
     // Start is called before the first frame update
     void Start()
     {
-        
+        col = gameObject.GetComponent<Collidable>();
+        col.velocity = vel;
     }
 
     // Update is called once per frame
     void Update()
     {
-        transform.position = new Vector3(0,0, arcLength * Mathf.Sin(Time.time * moveSpeed));
     }
 }

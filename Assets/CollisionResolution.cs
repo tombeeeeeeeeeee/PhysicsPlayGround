@@ -61,7 +61,7 @@ public class CollisionResolution : MonoBehaviour
     }
 
     // Update is called once per frame
-    void Update()
+    void FixedUpdate()
     {
         //Intergration Step
         for(int i = 0; i < collidables.Length; i++)
@@ -102,13 +102,14 @@ public class CollisionResolution : MonoBehaviour
             collidable.force += gravity / collidable.invMass;
         }
 
+        collidable.velocity *= 1 - 0.001f;
         collidable.velocity += Time.deltaTime * collidable.invMass * collidable.force;
+        collidable.angularMomentum *= 1 - 0.1f;
         collidable.angularMomentum += Time.deltaTime * collidable.torque;
 
         collidable.angularVelocity = math.mul(math.transpose(new float3x3(collidable.transform.rotation)), collidable.angularMomentum);
         collidable.angularVelocity = math.mul(collidable.invBodyIT, collidable.angularVelocity);
         collidable.angularVelocity = math.mul(new float3x3(collidable.transform.rotation), collidable.angularVelocity);
-
 
         collidable.transform.position += collidable.netDepen;
         collidable.netDepen = Vector3.zero;
@@ -128,8 +129,18 @@ public class CollisionResolution : MonoBehaviour
         rotation += new float3x3(collidable.transform.rotation);
         collidable.transform.rotation = OrthonormalizeOrientation(rotation);
 
-        collidable.invWorldIT = math.mul(math.mul(collidable.invBodyIT, new float3x3(collidable.transform.rotation)), math.transpose(collidable.invBodyIT));
-        collidable.invWorldIT = math.mul(collidable.invBodyIT, math.mul(new float3x3(collidable.transform.rotation), math.transpose(collidable.invBodyIT)));
+        //collidable.invWorldIT = collidable.invBodyIT;
+
+        Vector3 invWorldInertiaTensor = new Vector3(collidable.invBodyIT[0][0], collidable.invBodyIT[1][1], collidable.invBodyIT[2][2]);
+        invWorldInertiaTensor = math.mul(collidable.transform.rotation, math.mul(math.conjugate(collidable.transform.rotation), invWorldInertiaTensor));
+        //collidable.invWorldIT = math.mul(new float3x3(collidable.transform.rotation) , collidable.invBodyIT);
+        //collidable.invWorldIT = math.mul(collidable.invWorldIT, math.transpose(collidable.invBodyIT));
+        //collidable.invWorldIT = math.mul(collidable.invBodyIT, math.mul(new float3x3(collidable.transform.rotation), math.transpose(collidable.invBodyIT)));
+        collidable.invWorldIT = new float3x3(
+            invWorldInertiaTensor.x, 0, 0,
+            0, invWorldInertiaTensor.y, 0,
+            0, 0, invWorldInertiaTensor.z
+            );
 
         collidable.torque = Vector3.zero;
         collidable.force = Vector3.zero;
@@ -181,10 +192,6 @@ public class CollisionResolution : MonoBehaviour
         testingOrbs[1].transform.position = collision.tangentA;
         testingOrbs[2].transform.position = collision.tangentB;
 
-        //Orient Normal after EPA
-        collision.normal *= sign(Vector3.Dot(collision.normal,collision.objectA.transform.position - collision.objectB.transform.position));
-        collision.normal.Normalize();
-
         //Calculate R for each shape
         Vector3 rA = collision.worldContact - collision.objectA.transform.position;
         Vector3 rB = collision.worldContact - collision.objectB.transform.position;
@@ -192,8 +199,8 @@ public class CollisionResolution : MonoBehaviour
         float totalInverseMass = (collision.objectA.invMass + collision.objectB.invMass);
 
         //Add depenertration to collidable, ensures too much depenertration per frame doesnt occure
-        AddDepen(collision.normal * (collision.depth + 0.00001f) * collision.objectA.invMass/ totalInverseMass, ref collision.objectA.netDepen);
-        AddDepen(-collision.normal * (collision.depth + 0.00001f) * collision.objectB.invMass/ totalInverseMass, ref collision.objectB.netDepen);
+        AddDepen(collision.normal * (collision.depth) * collision.objectA.invMass/ totalInverseMass, ref collision.objectA.netDepen);
+        AddDepen(-collision.normal * (collision.depth) * collision.objectB.invMass/ totalInverseMass, ref collision.objectB.netDepen);
 
         // Relative Vel = Liner Vel and Angular Vel at point of Collision
         Vector3 relativeVelocity =
@@ -205,22 +212,17 @@ public class CollisionResolution : MonoBehaviour
         elasticCoef /= 2;
 
 
-        //WORK AROUND REMOVE FOR CPP
-        
-        //Convert Normal to unity mathematics
-        float3 normal = new float3(collision.normal);
+        Vector3 aDenomComponentVector = math.mul(collision.objectA.invWorldIT, Vector3.Cross(rA, collision.normal));
+        Vector3 bDenomComponentVector = math.mul(collision.objectB.invWorldIT, Vector3.Cross(rB, collision.normal));
 
-        float3 aDenomComponent = math.mul(collision.objectA.invBodyIT , new float3(Vector3.Cross(rA,collision.normal)));
-        float3 bDenomComponent = math.mul(collision.objectB.invBodyIT , new float3(Vector3.Cross(rB,collision.normal)));
+        float aDenomComponentFloat = Vector3.Dot(Vector3.Cross(aDenomComponentVector, rA),collision.normal);
+        float bDenomComponentFloat = Vector3.Dot(Vector3.Cross(bDenomComponentVector, rB),collision.normal);
 
-        aDenomComponent = math.cross(aDenomComponent, rA);
-        bDenomComponent = math.cross(bDenomComponent, rB);
+        float denom = aDenomComponentFloat + bDenomComponentFloat;
 
-        Vector3 denom = new Vector3(aDenomComponent.x + bDenomComponent.x, aDenomComponent.y + bDenomComponent.y, aDenomComponent.z + bDenomComponent.z);
-
-        float j = -(1 + elasticCoef) * Vector3.Dot(relativeVelocity, collision.normal) /
-            (totalInverseMass + Vector3.Dot(denom, normal));
-
+        float j = -(1/*elasticCoef*/) * Vector3.Dot(relativeVelocity, collision.normal) /
+            (totalInverseMass + denom);
+         
         if (j < 0) return;
 
         Vector3 linearRestitution = j * collision.normal;
@@ -228,17 +230,13 @@ public class CollisionResolution : MonoBehaviour
         collision.objectA.velocity += linearRestitution * collision.objectA.invMass;
         collision.objectB.velocity -= linearRestitution * collision.objectB.invMass;
 
-        //Undo the elasticisness
+        Vector3 angularRestitutionA = Vector3.Cross(rA, linearRestitution);
+        Vector3 angularRestitutionB = Vector3.Cross(rB, linearRestitution);
 
-        if(abs(Vector3.Dot(normal,rA)) > 0.00001f && collision.objectA.momentOfInertia.sqrMagnitude != 0)
-        {
-            collision.objectA.angularMomentum += Vector3.Cross(rA, linearRestitution);
-        }
+        collision.objectA.angularMomentum += angularRestitutionA;
+        collision.objectB.angularMomentum -= angularRestitutionB;
 
-        if (abs(Vector3.Dot(normal, rB)) > 0.00001f && collision.objectB.momentOfInertia.sqrMagnitude != 0)
-        {
-          collision.objectB.angularMomentum -=  Vector3.Cross(rB, linearRestitution);
-        }
+        //Yes I think you're correct that these shuold be as they are (one plus, one minus) -Finn
     }
 
     void AddDepen(Vector3 newDepen, ref Vector3 currDepen)
@@ -300,10 +298,9 @@ public class CollisionResolution : MonoBehaviour
         }
 
         if (gjking == GJKEvolution.intersecting)
-        { 
-
-
+        {
             EPA(ref simp, ref collision, shapeA, a.radius, aTransform, shapeB, b.radius, bTransform);
+            CalculateCollsionPoint(shapeA, a.radius, shapeB, b.radius, simp.points, collision.normal ,out collision.worldContact);
         }
 
         return collision;
@@ -388,8 +385,20 @@ public class CollisionResolution : MonoBehaviour
         return GJKEvolution.evolving;
     }
 
-    void CalculateCollsionPoint(Vector3[]a, float aRadius, Vector3[]b, float bRadius, List<Vector3> simp, out Vector3 aCollision, out Vector3 bCollision)
+    void CalculateCollsionPoint(Vector3[]a, float aRadius, Vector3[]b, float bRadius, List<Vector3> simp, Vector3 normal, out Vector3 contactPoint)
     {
+        contactPoint = Vector3.zero;
+        if(a.Length == 1)
+        {
+            contactPoint = SupportFunction(-normal, a, aRadius);
+            return;
+        }
+        else if (b.Length == 1)
+        {
+            contactPoint = SupportFunction(normal, b, bRadius);
+            return;
+        }
+
         ///Calculate Barycentric position of Origin within simplex
         ///Get Support for A and B from positions on simplex
         ///Calculate Barcycentirc information for A and B versions of collision
@@ -415,8 +424,10 @@ public class CollisionResolution : MonoBehaviour
         Vector3 bC = SupportFunction(-simp[2], b, bRadius);
         Vector3 bD = SupportFunction(-simp[3], b, bRadius);
     
-        aCollision = i * aA + j * aB + k * aC + l * aD;
-        bCollision = i * bA + j * bB + k * bC + l * bD;
+        Vector3 aCollision = i * aA + j * aB + k * aC + l * aD;
+        Vector3 bCollision = i * bA + j * bB + k * bC + l * bD;
+        contactPoint = aCollision / 2 + bCollision / 2;
+
     }
 
     GJKEvolution AddSupportToSimplex(ref Simplex simp, Vector3 vert, Vector3 dir)
@@ -535,14 +546,8 @@ public class CollisionResolution : MonoBehaviour
             }
         }
 
-        Vector3 aContact, bContact;
-        CalculateCollsionPoint(shapeA, aRadius, shapeB, bRadius, polytope, out aContact, out bContact);
-        collision.tangentA = aContact;
-        collision.tangentB = bContact;
-        collision.worldContact = bContact / 2 + aContact / 2;
-
-        collision.normal = Vector3.Normalize(new Vector3(minNormal.x, minNormal.y, minNormal.z) * Vector3.Dot(b.position - a.position, minNormal));
-        collision.depth = minDistance + 0.0001f;
+        collision.normal = -Vector3.Normalize(new Vector3(minNormal.x, minNormal.y, minNormal.z) * Vector3.Dot(b.position - a.position, minNormal));
+        collision.depth = minDistance;
     }
 
     List<Vector4> GetFaceNormals(List<Vector3> polytope, List<int> faces, out int face)

@@ -1,11 +1,8 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
-using UnityEngine.UI;
-using static UnityEditor.PlayerSettings;
 using Unity.Mathematics;
+
 [Serializable]
 public struct Shape
 {
@@ -31,7 +28,7 @@ public class Collidable : MonoBehaviour
     public float invMass;
     public Vector3 centreOfMass = Vector3.zero;
     public bool isGravitated = false;
-    public float elasticCoef = 1; //0.65f;
+    public float elasticCoef = 0.65f;
 
     // Start is called before the first frame update
     void Start()
@@ -54,7 +51,6 @@ public class Collidable : MonoBehaviour
 
         dX *= dX; dY *= dY; dZ *= dZ;
 
-
         if(invMass > 0) { 
             invBodyIT = new float3x3(
                 (momentOfInertia.x * invMass * 12) / (dY + dZ), 0, 0,
@@ -65,7 +61,6 @@ public class Collidable : MonoBehaviour
 
         invWorldIT = math.mul(math.mul(invBodyIT, new float3x3(transform.rotation)), math.transpose(invBodyIT));
         //invWorldIT = math.mul(invBodyIT, math.mul(new float3x3(transform.rotation), math.transpose(invBodyIT)));
-
     }
 
     // Update is called once per frame

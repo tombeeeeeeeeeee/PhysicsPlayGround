@@ -4,14 +4,13 @@ using System.Linq;
 using UnityEngine;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
-
+using Unity.VisualScripting;
 
 public struct CollisionPacket
 {
     public Vector3 worldContact;
 
     public Vector3 normal;
-    public Vector3 tangentA; public Vector3 tangentB;
     public float depth;
 
     public Collidable objectA;
@@ -21,7 +20,6 @@ public struct CollisionPacket
         depth = _depth;
         worldContact = Vector3.zero;
         normal = Vector3.zero;
-        tangentA = tangentB = Vector3.zero;
         objectA = null;
         objectB = null;
     }
@@ -189,55 +187,53 @@ public class CollisionResolution : MonoBehaviour
         
         //Debuging
         testingOrbs[0].transform.position = collision.worldContact;
-        testingOrbs[1].transform.position = collision.tangentA;
-        testingOrbs[2].transform.position = collision.tangentB;
+
 
         //Calculate R for each shape
-        Vector3 rA = collision.worldContact - collision.objectA.transform.position;
-        Vector3 rB = collision.worldContact - collision.objectB.transform.position;
-
-        float totalInverseMass = (collision.objectA.invMass + collision.objectB.invMass);
-
-       
-
-        // Relative Vel = Liner Vel and Angular Vel at point of Collision
-        Vector3 relativeVelocity =
-              (collision.objectA.velocity + Vector3.Cross(collision.objectA.angularVelocity,rA))
-            - (collision.objectB.velocity + Vector3.Cross(collision.objectB.angularVelocity,rB));
-
-        //Calculate Average Elasticity
-        float elasticCoef = collision.objectA.elasticCoef + collision.objectB.elasticCoef;
-        elasticCoef /= 2;
-
-
-        Vector3 aDenomComponentVector = math.mul(collision.objectA.invWorldIT, Vector3.Cross(rA, collision.normal));
-        Vector3 bDenomComponentVector = math.mul(collision.objectB.invWorldIT, Vector3.Cross(rB, collision.normal));
-
-        float aDenomComponentFloat = Vector3.Dot(Vector3.Cross(aDenomComponentVector, rA),collision.normal);
-        float bDenomComponentFloat = Vector3.Dot(Vector3.Cross(bDenomComponentVector, rB),collision.normal);
-
-        float denom = aDenomComponentFloat + bDenomComponentFloat;
-
-        float j = -(1 + elasticCoef) * Vector3.Dot(relativeVelocity, collision.normal) /
-            (totalInverseMass + denom);
-         
-        if (j < 0) return;
-
-        //Add depenertration to collidable, ensures too much depenertration per frame doesnt occure
-        AddDepen(collision.normal * (collision.depth) * collision.objectA.invMass / totalInverseMass, ref collision.objectA.netDepen);
-        AddDepen(-collision.normal * (collision.depth) * collision.objectB.invMass / totalInverseMass, ref collision.objectB.netDepen);
-
-
-        Vector3 linearRestitution = j * collision.normal;
-
-        collision.objectA.velocity += linearRestitution * collision.objectA.invMass;
-        collision.objectB.velocity -= linearRestitution * collision.objectB.invMass;
-
-        Vector3 angularRestitutionA = Vector3.Cross(rA, linearRestitution);
-        Vector3 angularRestitutionB = Vector3.Cross(rB, linearRestitution);
-
-        collision.objectA.angularMomentum += angularRestitutionA;
-        collision.objectB.angularMomentum -= angularRestitutionB;
+       //Vector3 rA = collision.worldContact - collision.objectA.transform.position;
+       //Vector3 rB = collision.worldContact - collision.objectB.transform.position;
+       //
+       //float totalInverseMass = (collision.objectA.invMass + collision.objectB.invMass);
+       //
+       //
+       //// Relative Vel = Liner Vel and Angular Vel at point of Collision
+       //Vector3 relativeVelocity =
+       //      (collision.objectA.velocity + Vector3.Cross(collision.objectA.angularVelocity,rA))
+       //    - (collision.objectB.velocity + Vector3.Cross(collision.objectB.angularVelocity,rB));
+       //
+       ////Calculate Average Elasticity
+       //float elasticCoef = collision.objectA.elasticCoef + collision.objectB.elasticCoef;
+       //elasticCoef /= 2;
+       //
+       //
+       //Vector3 aDenomComponentVector = math.mul(collision.objectA.invWorldIT, Vector3.Cross(rA, collision.normal));
+       //Vector3 bDenomComponentVector = math.mul(collision.objectB.invWorldIT, Vector3.Cross(rB, collision.normal));
+       //
+       //float aDenomComponentFloat = Vector3.Dot(Vector3.Cross(aDenomComponentVector, rA),collision.normal);
+       //float bDenomComponentFloat = Vector3.Dot(Vector3.Cross(bDenomComponentVector, rB),collision.normal);
+       //
+       //float denom = aDenomComponentFloat + bDenomComponentFloat;
+       //
+       //float j = -(1 + elasticCoef) * Vector3.Dot(relativeVelocity, collision.normal) /
+       //    (totalInverseMass + denom);
+       // 
+       //if (j < 0) return;
+       //
+       ////Add depenertration to collidable, ensures too much depenertration per frame doesnt occure
+       //AddDepen(collision.normal * (collision.depth) * collision.objectA.invMass / totalInverseMass, ref collision.objectA.netDepen);
+       //AddDepen(-collision.normal * (collision.depth) * collision.objectB.invMass / totalInverseMass, ref collision.objectB.netDepen);
+       //
+       //
+       //Vector3 linearRestitution = j * collision.normal;
+       //
+       //collision.objectA.velocity += linearRestitution * collision.objectA.invMass;
+       //collision.objectB.velocity -= linearRestitution * collision.objectB.invMass;
+       //
+       //Vector3 angularRestitutionA = Vector3.Cross(rA, linearRestitution);
+       //Vector3 angularRestitutionB = Vector3.Cross(rB, linearRestitution);
+       //
+       //collision.objectA.angularMomentum += angularRestitutionA;
+       //collision.objectB.angularMomentum -= angularRestitutionB;
 
 
         //Yes I think you're correct that these shuold be as they are (one plus, one minus) -Finn
@@ -311,7 +307,7 @@ public class CollisionResolution : MonoBehaviour
         if (gjking == GJKEvolution.intersecting)
         {
             EPA(ref simp, ref collision, shapeA, a.radius, aTransform, shapeB, b.radius, bTransform);
-            CalculateCollsionPoint(shapeA, a.radius, shapeB, b.radius, simp.points, collision.normal ,out collision.worldContact);
+            //CalculateCollsionPoint(shapeA, a.radius, shapeB, b.radius, simp.points, collision.normal ,out collision.worldContact);
         }
 
         return collision;
@@ -396,48 +392,80 @@ public class CollisionResolution : MonoBehaviour
         return GJKEvolution.evolving;
     }
 
-    void CalculateCollsionPoint(Vector3[]a, float aRadius, Vector3[]b, float bRadius, List<Vector3> simp, Vector3 normal, out Vector3 contactPoint)
+    void CalculateCollsionPoint(Vector3[]a, float aRadius, Vector3[]b, float bRadius, List<Vector3> points, Vector3 normal, out Vector3 contactPoint)
     {
         contactPoint = Vector3.zero;
-        if(a.Length == 1)
+
+        Vector3 aMost = SupportFunction(-normal, a, aRadius);
+        Vector3 bMost = SupportFunction(normal, b, bRadius);
+
+        if (a.Length == 1)
         {
-            contactPoint = SupportFunction(-normal, a, aRadius);
+            contactPoint = aMost;
             return;
         }
         else if (b.Length == 1)
         {
-            contactPoint = SupportFunction(normal, b, bRadius);
+            contactPoint = bMost;
             return;
         }
 
-        ///Calculate Barycentric position of Origin within simplex
-        ///Get Support for A and B from positions on simplex
-        ///Calculate Barcycentirc information for A and B versions of collision
-        float3x3 T = new float3x3(
-            simp[0].x - simp[3].x, simp[1].x - simp[3].x, simp[2].x - simp[3].x,
-            simp[0].y - simp[3].y, simp[1].y - simp[3].y, simp[2].y - simp[3].y,
-            simp[0].z - simp[3].z, simp[1].z - simp[3].z, simp[2].z - simp[3].z
-            );
+        List<Vector3> aFaceVertices = new List<Vector3>();
+        List<Vector3> bFaceVertices = new List<Vector3>();
+        int vertexCount = 0;
 
-        T = math.inverse(T);
-        float3 r = new float3( -simp[3].x, -simp[3].y, -simp[3].z);
-        float3 lambda =math.mul(T , r);
-        float i = lambda[0]; float j = lambda[1]; float k = lambda[2]; float l = 1 - i - j - k;
-    
-    
-        Vector3 aA = SupportFunction(simp[0], a, aRadius);
-        Vector3 aB = SupportFunction(simp[1], a, aRadius);
-        Vector3 aC = SupportFunction(simp[2], a, aRadius);
-        Vector3 aD = SupportFunction(simp[3], a, aRadius);
-    
-        Vector3 bA = SupportFunction(-simp[0], b, bRadius);
-        Vector3 bB = SupportFunction(-simp[1], b, bRadius);
-        Vector3 bC = SupportFunction(-simp[2], b, bRadius);
-        Vector3 bD = SupportFunction(-simp[3], b, bRadius);
-    
-        Vector3 aCollision = i * aA + j * aB + k * aC + l * aD;
-        Vector3 bCollision = i * bA + j * bB + k * bC + l * bD;
-        contactPoint = aCollision / 2 + bCollision / 2;
+        for(int i = 0; i < a.Length; i++) 
+        {
+            Vector3 currentVert = a[i] + aRadius * -normal;
+            if (Vector3.Dot(currentVert - aMost, -normal) > -0.0001f)
+            {
+                aFaceVertices.Add(currentVert);
+                vertexCount++;
+            }
+        }
+
+
+        for (int i = 0; i < b.Length; i++)
+        {
+            Vector3 currentVert = b[i] + bRadius * normal;
+            if (Vector3.Dot(currentVert - bMost, normal) > -0.0001f)
+            {
+                bFaceVertices.Add(currentVert);
+                vertexCount++;
+            }
+        }
+
+        Vector3 colUp = (bFaceVertices[0] - bFaceVertices[1]).normalized;
+        Vector3 colRight = cross(colUp, normal);
+
+        Vector2[] a2D = new Vector2[aFaceVertices.Count];
+        Vector2[] b2D = new Vector2[bFaceVertices.Count];
+
+
+        for (int i = 0; i < a2D.Length; i++)
+        {
+            float x = Vector3.Dot(aFaceVertices[i], colRight);
+            float y = Vector3.Dot(aFaceVertices[i], colUp);
+
+            a2D[i] = new Vector2(x, y);
+        }
+
+        for (int i = 0; i < b2D.Length; i++)
+        {
+            float x = Vector3.Dot(bFaceVertices[i], colRight);
+            float y = Vector3.Dot(bFaceVertices[i], colUp);
+
+            b2D[i] = new Vector2(x, y);
+        }
+        
+        for(int i = 0; i < a2D.Length; i++)
+        {
+            for(int j = 0; j < b2D.Length; j++)
+            {
+                Vector2 curNormal = a2D[i];
+            }
+        }
+
 
     }
 

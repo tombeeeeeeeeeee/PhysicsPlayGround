@@ -284,14 +284,22 @@ MonoBehaviour:
   angularMomentum: {x: 0, y: 0, z: 0}
   shapes:
   - verticies:
-    - {x: 0.5, y: 0.5, z: 0.5}
-    - {x: 0.5, y: 0.5, z: -0.5}
-    - {x: 0.5, y: -0.5, z: 0.5}
-    - {x: 0.5, y: -0.5, z: -0.5}
-    - {x: -0.5, y: 0.5, z: 0.5}
-    - {x: -0.5, y: 0.5, z: -0.5}
-    - {x: -0.5, y: -0.5, z: 0.5}
-    - {x: -0.5, y: -0.5, z: -0.5}
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
     radius: 0
   invMass: 0.25
   centreOfMass: {x: 0, y: 0, z: 0}
@@ -474,19 +482,27 @@ MonoBehaviour:
   angularMomentum: {x: 0, y: 0, z: 0}
   shapes:
   - verticies:
-    - {x: 0.5, y: 0.5, z: 0.5}
-    - {x: 0.5, y: 0.5, z: -0.5}
-    - {x: 0.5, y: -0.5, z: 0.5}
-    - {x: 0.5, y: -0.5, z: -0.5}
-    - {x: -0.5, y: 0.5, z: 0.5}
-    - {x: -0.5, y: 0.5, z: -0.5}
-    - {x: -0.5, y: -0.5, z: 0.5}
-    - {x: -0.5, y: -0.5, z: -0.5}
+    - vert: {x: 0.5, y: 0.5, z: 0.5}
+      edges: 010000000200000004000000
+    - vert: {x: 0.5, y: 0.5, z: -0.5}
+      edges: 000000000300000005000000
+    - vert: {x: 0.5, y: -0.5, z: 0.5}
+      edges: 000000000300000006000000
+    - vert: {x: 0.5, y: -0.5, z: -0.5}
+      edges: 010000000200000007000000
+    - vert: {x: -0.5, y: 0.5, z: 0.5}
+      edges: 000000000500000006000000
+    - vert: {x: -0.5, y: 0.5, z: -0.5}
+      edges: 010000000400000007000000
+    - vert: {x: -0.5, y: -0.5, z: 0.5}
+      edges: 020000000400000007000000
+    - vert: {x: -0.5, y: -0.5, z: -0.5}
+      edges: 030000000500000006000000
     radius: 0
   invMass: 0
   centreOfMass: {x: 0, y: 0, z: 0}
   isGravitated: 0
-  elasticCoef: 0.8
+  elasticCoef: 1
 --- !u!65 &466013260
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -645,14 +661,22 @@ MonoBehaviour:
   angularMomentum: {x: 0, y: 0, z: 0}
   shapes:
   - verticies:
-    - {x: 0.5, y: 0.5, z: 0.5}
-    - {x: 0.5, y: 0.5, z: -0.5}
-    - {x: 0.5, y: -0.5, z: 0.5}
-    - {x: 0.5, y: -0.5, z: -0.5}
-    - {x: -0.5, y: 0.5, z: 0.5}
-    - {x: -0.5, y: 0.5, z: -0.5}
-    - {x: -0.5, y: -0.5, z: 0.5}
-    - {x: -0.5, y: -0.5, z: -0.5}
+    - vert: {x: 0.5, y: 0.5, z: 0.5}
+      edges: 010000000200000004000000
+    - vert: {x: 0.5, y: 0.5, z: -0.5}
+      edges: 000000000300000005000000
+    - vert: {x: 0.5, y: -0.5, z: 0.5}
+      edges: 000000000300000006000000
+    - vert: {x: 0.5, y: -0.5, z: -0.5}
+      edges: 010000000200000007000000
+    - vert: {x: -0.5, y: 0.5, z: 0.5}
+      edges: 000000000500000006000000
+    - vert: {x: -0.5, y: 0.5, z: -0.5}
+      edges: 010000000400000007000000
+    - vert: {x: -0.5, y: -0.5, z: 0.5}
+      edges: 020000000400000007000000
+    - vert: {x: -0.5, y: -0.5, z: -0.5}
+      edges: 030000000500000006000000
     radius: 0
   invMass: 0
   centreOfMass: {x: 0, y: 0, z: 0}
@@ -920,7 +944,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 744512780}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 6.61, z: -1.132}
+  m_LocalPosition: {x: -0.5, y: 0.5, z: -0.5}
   m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -1007,14 +1031,22 @@ MonoBehaviour:
   angularMomentum: {x: 0, y: 0, z: 0}
   shapes:
   - verticies:
-    - {x: 0.5, y: 0.5, z: 0.5}
-    - {x: 0.5, y: 0.5, z: -0.5}
-    - {x: 0.5, y: -0.5, z: 0.5}
-    - {x: 0.5, y: -0.5, z: -0.5}
-    - {x: -0.5, y: 0.5, z: 0.5}
-    - {x: -0.5, y: 0.5, z: -0.5}
-    - {x: -0.5, y: -0.5, z: 0.5}
-    - {x: -0.5, y: -0.5, z: -0.5}
+    - vert: {x: 0.5, y: 0.5, z: 0.5}
+      edges: 010000000200000004000000
+    - vert: {x: 0.5, y: 0.5, z: -0.5}
+      edges: 000000000300000005000000
+    - vert: {x: 0.5, y: -0.5, z: 0.5}
+      edges: 000000000300000006000000
+    - vert: {x: 0.5, y: -0.5, z: -0.5}
+      edges: 010000000200000007000000
+    - vert: {x: -0.5, y: 0.5, z: 0.5}
+      edges: 000000000500000006000000
+    - vert: {x: -0.5, y: 0.5, z: -0.5}
+      edges: 010000000400000007000000
+    - vert: {x: -0.5, y: -0.5, z: 0.5}
+      edges: 020000000400000007000000
+    - vert: {x: -0.5, y: -0.5, z: -0.5}
+      edges: 030000000500000006000000
     radius: 0
   invMass: 0
   centreOfMass: {x: 0, y: 0, z: 0}
@@ -1379,18 +1411,26 @@ MonoBehaviour:
   angularMomentum: {x: 0, y: 0, z: 0}
   shapes:
   - verticies:
-    - {x: 0.5, y: 0.5, z: 0.5}
-    - {x: 0.5, y: 0.5, z: -0.5}
-    - {x: 0.5, y: -0.5, z: 0.5}
-    - {x: 0.5, y: -0.5, z: -0.5}
-    - {x: -0.5, y: 0.5, z: 0.5}
-    - {x: -0.5, y: 0.5, z: -0.5}
-    - {x: -0.5, y: -0.5, z: 0.5}
-    - {x: -0.5, y: -0.5, z: -0.5}
+    - vert: {x: 0.5, y: 0.5, z: 0.5}
+      edges: 010000000200000004000000
+    - vert: {x: 0.5, y: 0.5, z: -0.5}
+      edges: 000000000300000005000000
+    - vert: {x: 0.5, y: -0.5, z: 0.5}
+      edges: 000000000300000006000000
+    - vert: {x: 0.5, y: -0.5, z: -0.5}
+      edges: 010000000200000007000000
+    - vert: {x: -0.5, y: 0.5, z: 0.5}
+      edges: 000000000500000006000000
+    - vert: {x: -0.5, y: 0.5, z: -0.5}
+      edges: 010000000400000007000000
+    - vert: {x: -0.5, y: -0.5, z: 0.5}
+      edges: 020000000400000007000000
+    - vert: {x: -0.5, y: -0.5, z: -0.5}
+      edges: 030000000500000006000000
     radius: 0
   invMass: 0.25
   centreOfMass: {x: 0, y: 0, z: 0}
-  isGravitated: 1
+  isGravitated: 0
   elasticCoef: 0.65
 --- !u!114 &1331559359
 MonoBehaviour:
@@ -1477,14 +1517,14 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1331559357}
-  m_LocalRotation: {x: -0.006170542, y: 0.7070799, z: -0.006170542, w: 0.7070799}
-  m_LocalPosition: {x: 10.76, y: 5.765, z: -6.68}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 8.59, y: 6.71, z: -7.07}
   m_LocalScale: {x: 4, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 13
-  m_LocalEulerAnglesHint: {x: 0, y: 90, z: -1}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1348868477
 GameObject:
   m_ObjectHideFlags: 0
@@ -1662,14 +1702,22 @@ MonoBehaviour:
   angularMomentum: {x: 0, y: 0, z: 0}
   shapes:
   - verticies:
-    - {x: 0.5, y: 0.5, z: 0.5}
-    - {x: 0.5, y: 0.5, z: -0.5}
-    - {x: 0.5, y: -0.5, z: 0.5}
-    - {x: 0.5, y: -0.5, z: -0.5}
-    - {x: -0.5, y: 0.5, z: 0.5}
-    - {x: -0.5, y: 0.5, z: -0.5}
-    - {x: -0.5, y: -0.5, z: 0.5}
-    - {x: -0.5, y: -0.5, z: -0.5}
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
     radius: 0
   invMass: 0
   centreOfMass: {x: 0, y: 0, z: 0}
@@ -2027,14 +2075,22 @@ MonoBehaviour:
   angularMomentum: {x: 0, y: 0, z: 0}
   shapes:
   - verticies:
-    - {x: 0.5, y: 0.5, z: 0.5}
-    - {x: 0.5, y: 0.5, z: -0.5}
-    - {x: 0.5, y: -0.5, z: 0.5}
-    - {x: 0.5, y: -0.5, z: -0.5}
-    - {x: -0.5, y: 0.5, z: 0.5}
-    - {x: -0.5, y: 0.5, z: -0.5}
-    - {x: -0.5, y: -0.5, z: 0.5}
-    - {x: -0.5, y: -0.5, z: -0.5}
+    - vert: {x: 0.5, y: 0.5, z: 0.5}
+      edges: 010000000200000004000000
+    - vert: {x: 0.5, y: 0.5, z: -0.5}
+      edges: 000000000300000005000000
+    - vert: {x: 0.5, y: -0.5, z: 0.5}
+      edges: 000000000300000006000000
+    - vert: {x: 0.5, y: -0.5, z: -0.5}
+      edges: 010000000200000007000000
+    - vert: {x: -0.5, y: 0.5, z: 0.5}
+      edges: 000000000500000006000000
+    - vert: {x: -0.5, y: 0.5, z: -0.5}
+      edges: 010000000400000007000000
+    - vert: {x: -0.5, y: -0.5, z: 0.5}
+      edges: 020000000400000007000000
+    - vert: {x: -0.5, y: -0.5, z: -0.5}
+      edges: 030000000500000006000000
     radius: 0
   invMass: 0
   centreOfMass: {x: 0, y: 0, z: 0}
@@ -2389,7 +2445,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2067515707}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 10.481, y: 10.04, z: -7.831}
+  m_LocalPosition: {x: 8, y: 8.61, z: -8.59}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2443,12 +2499,13 @@ MonoBehaviour:
   angularMomentum: {x: 0, y: 0, z: 0}
   shapes:
   - verticies:
-    - {x: 0, y: 0, z: 0}
+    - vert: {x: 0, y: 0, z: 0}
+      edges: 
     radius: 0.5
   invMass: 0.2
   centreOfMass: {x: 0, y: 0, z: 0}
   isGravitated: 0
-  elasticCoef: 0.65
+  elasticCoef: 1
 --- !u!1 &2072019421
 GameObject:
   m_ObjectHideFlags: 0
@@ -2515,12 +2572,14 @@ MonoBehaviour:
   angularMomentum: {x: 0, y: 0, z: 0}
   shapes:
   - verticies:
-    - {x: 0, y: 0.5, z: 0}
-    - {x: 0, y: -0.5, z: 0}
+    - vert: {x: 0, y: 0.5, z: 0}
+      edges: 01000000
+    - vert: {x: 0, y: -0.5, z: 0}
+      edges: 00000000
     radius: 0.5
   invMass: 0.2
   centreOfMass: {x: 0, y: 0, z: 0}
-  isGravitated: 0
+  isGravitated: 1
   elasticCoef: 1
 --- !u!23 &2072019423
 MeshRenderer:

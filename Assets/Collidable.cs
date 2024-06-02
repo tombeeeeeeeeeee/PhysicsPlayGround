@@ -4,10 +4,27 @@ using UnityEngine;
 using Unity.Mathematics;
 
 [Serializable]
+public struct Vertex
+{
+    public Vector3 vert;
+    public int[] edges;
+}
+
+[Serializable]
 public struct Shape
 {
-    public Vector3[] verticies;
+    public Vertex[] verticies;
     public float radius;
+
+    public Vector3[] ToArray()
+    {
+        Vector3[] verts = new Vector3[verticies.Length];
+        for(int i = 0; i < verticies.Length; i++)
+        {
+            verts[i] = verticies[i].vert;
+        }
+        return verts;
+    }
 }
 
 public class Collidable : MonoBehaviour
@@ -40,9 +57,9 @@ public class Collidable : MonoBehaviour
 
         foreach(Shape shape in shapes)
         {
-            foreach(Vector3 vertex in shape.verticies)
+            foreach(Vertex vertex in shape.verticies)
             {
-                Vector3 vertWorld = transform.TransformPoint(vertex);
+                Vector3 vertWorld = transform.TransformPoint(vertex.vert);
                 if(Math.Abs(vertWorld.x) + shape.radius > dX) dX = Math.Abs(vertWorld.x) + shape.radius;
                 if(Math.Abs(vertWorld.y) + shape.radius > dY) dY = Math.Abs(vertWorld.y) + shape.radius;
                 if(Math.Abs(vertWorld.z) + shape.radius > dZ) dZ = Math.Abs(vertWorld.z) + shape.radius;
@@ -60,7 +77,6 @@ public class Collidable : MonoBehaviour
        }
 
         invWorldIT = math.mul(math.mul(invBodyIT, new float3x3(transform.rotation)), math.transpose(invBodyIT));
-        //invWorldIT = math.mul(invBodyIT, math.mul(new float3x3(transform.rotation), math.transpose(invBodyIT)));
     }
 
     // Update is called once per frame

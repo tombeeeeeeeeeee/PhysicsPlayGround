@@ -390,54 +390,45 @@ public class CollisionResolution : MonoBehaviour
         return GJKEvolution.evolving;
     }
 
-    void CalculateCollsionPoint(Vector3[]a, Shape aShape, Vector3[]b, Shape bShape, List<Vector3> points, Vector3 normal, out Vector3 contactPoint)
+    void CalculateCollsionPoint(Vector3[] aVerts, Shape aShape, Vector3[] bVerts, Shape bShape, List<Vector3> points, Vector3 normal, out Vector3 contactPoint)
     {
         contactPoint = Vector3.zero;
 
-        Vector3 aMost = SupportFunction(-normal, a, aShape.radius);
-        Vector3 bMost = SupportFunction(normal, b, bShape.radius);
+        int aMostIndex, bMostIndex;
 
-        if (a.Length == 1)
+        Vector3 aMost = SupportFunction(-normal, aVerts, aShape.radius, out aMostIndex);
+        Vector3 bMost = SupportFunction(normal, bVerts, bShape.radius, out bMostIndex);
+
+        if (aVerts.Length == 1)
         {
             contactPoint = aMost;
             return;
         }
-        else if (b.Length == 1)
+        else if (bVerts.Length == 1)
         {
             contactPoint = bMost;
             return;
         }
 
-        List<Vector3> aFaceVertices = new List<Vector3>();
-        List<Vector3> bFaceVertices = new List<Vector3>();
-        int vertexCount = 0;
+        List<int> aFaceVertices = new List<int>();aFaceVertices.Add(aMostIndex);
+        List<int> bFaceVertices = new List<int>();bFaceVertices.Add(bMostIndex);
 
-        for(int i = 0; i < a.Length; i++) 
+        for(int i = 0; i < aShape.verticies[aMostIndex].edges.Length; i++)
         {
-            Vector3 currentVert = a[i] + aShape.radius * -normal;
-            if (Vector3.Dot(currentVert - aMost, -normal) > -0.01f)
-            {
-                aFaceVertices.Add(currentVert);
-                vertexCount++;
-            }
+            AddFaceVert(-normal, aMostIndex, aShape.verticies[aMostIndex].edges[i], aShape, ref aFaceVertices);
         }
 
-
-        for (int i = 0; i < b.Length; i++)
+        for (int i = 0; i < bShape.verticies[bMostIndex].edges.Length; i++)
         {
-            Vector3 currentVert = b[i] + bShape.radius * normal;
-            if (Vector3.Dot(currentVert - bMost, normal) > -0.01f)
-            {
-                bFaceVertices.Add(currentVert);
-                vertexCount++;
-            }
+            AddFaceVert(normal, bMostIndex, bShape.verticies[bMostIndex].edges[i], bShape, ref bFaceVertices);
         }
 
         if (aFaceVertices.Count == 1) {contactPoint = aMost; return; }
         if (bFaceVertices.Count == 1) {contactPoint = bMost; return; }
 
-        Vector3 colUp = (bFaceVertices[0] - bFaceVertices[1]).normalized;
+        Vector3 colUp = (bShape.verticies[bFaceVertices[0]].vert - bShape.verticies[bFaceVertices[1]].vert).normalized;
         Vector3 colRight = cross(colUp, normal);
+        colUp = cross(colRight, normal);
 
         Vector2[] a2D = new Vector2[aFaceVertices.Count];
         Vector2[] b2D = new Vector2[bFaceVertices.Count];
@@ -445,31 +436,105 @@ public class CollisionResolution : MonoBehaviour
 
         for (int i = 0; i < a2D.Length; i++)
         {
-            float x = Vector3.Dot(aFaceVertices[i], colRight);
-            float y = Vector3.Dot(aFaceVertices[i], colUp);
-
+            float x = Vector3.Dot(aShape.verticies[aFaceVertices[i]].vert, colRight);
+            float y = Vector3.Dot(aShape.verticies[aFaceVertices[i]].vert, colUp);
+            if(i ==0)
+            {
+                Vector3 debug3D = aShape.verticies[aFaceVertices[i]].vert;
+                Debug.Log("3D initial x: " + debug3D.x + " y: " + debug3D.y + " z: " + debug3D.z);
+                Debug.Log("2D translation x: " + x + " y: " + y);
+                debug3D = x * colRight + y * colUp;
+                Debug.Log("3D translation x: " + debug3D.x + " y: " + debug3D.y + " z: " + debug3D.z);
+            }
             a2D[i] = new Vector2(x, y);
         }
 
         for (int i = 0; i < b2D.Length; i++)
         {
-            float x = Vector3.Dot(bFaceVertices[i], colRight);
-            float y = Vector3.Dot(bFaceVertices[i], colUp);
+            float x = Vector3.Dot(bShape.verticies[bFaceVertices[i]].vert, colRight);
+            float y = Vector3.Dot(bShape.verticies[bFaceVertices[i]].vert, colUp);
 
             b2D[i] = new Vector2(x, y);
         }
-        
+
+        List<Vector2> contactPoints = new List<Vector2>();
+
         for(int i = 0; i < a2D.Length; i++)
         {
+            Vector2 a = a2D[i];
+            Vector2 b = a2D[(i + 1) % a2D.Length] - a;
+
             for(int j = 0; j < b2D.Length; j++)
             {
-                
+                Vector2 c = b2D[j];
+                Vector2 d = b2D[(j + 1) % b2D.Length] - c;
+
+                float denominator = d.y * b.x - b.y * d.x;
+                if(denominator != 0)
+                {
+                    float numerator = a.y * b.x - b.y * a.x - c.y * b.x + b.y * a.x;
+                    float t2 = numerator / denominator;
+                    if(t2 >= 0 && t2 <= 1)
+                    {
+                        float t1 = -1;
+                        if(abs(b.x) > abs(b.y))
+                        {
+                            t1 = c.x + d.x * t2 - a.x;
+                            t1 /= b.x;
+                        }
+                        else if(b.y != 0)
+                        {
+                            t1 = c.y + d.y * t2 - a.y;
+                            t1 /= b.y;
+                        }
+                        if(t1 >= 0 && t1 <= 1)
+                        {
+                            Vector2 contact = c + d * t2;
+                            contactPoints.Add(contact);
+                        }
+                    }
+                }
             }
         }
 
+        if(contactPoints.Count > 0)
+        {
+            contactPoint = Vector3.zero;
+            foreach(Vector2 vert in contactPoints)
+            {
+                contactPoint += vert.x * colRight + vert.y * colUp;
+            }
+            contactPoint /= contactPoints.Count;
+        }
+        else
+        {
+            Vector2 aApproxCentre = Vector2.zero;
+            Vector2 bApproxCentre = Vector2.zero;
 
+            for(int i = 0; i < b2D.Length; i++)
+            {
+                bApproxCentre += b2D[i];
+            }
+            Vector2 contactPoint2D;
+            Vector2 planeNormal = b2D[1] - b2D[0];
+            planeNormal = new Vector2(planeNormal.y, -planeNormal.x);
+            float planeDisplacement = Vector2.Dot(b2D[1], planeNormal);
+            float depthSign = Vector2.Dot(a2D[0], planeNormal) - planeDisplacement;
+            for(int i = 1; i < a2D.Length; i++)
+            {
+                if(sign(depthSign) != sign(Vector2.Dot(a2D[i], planeNormal) - planeDisplacement))
+                {
+                    contactPoint2D = bApproxCentre / b2D.Length;
+                    contactPoint = contactPoint2D.x * colRight + contactPoint2D.y * colUp;
+                    return;
+                }
+                aApproxCentre += a2D[i];
+            }
 
-
+            contactPoint2D = aApproxCentre / a2D.Length;
+            contactPoint = contactPoint2D.x * colRight + contactPoint2D.y * colUp;
+            return;
+        }
     }
 
     private void AddFaceVert(Vector3 normal, int originIndex, int currIndex, Shape shape, ref List<int>verts)
@@ -504,6 +569,22 @@ public class CollisionResolution : MonoBehaviour
     {
         float max = float.NegativeInfinity;
         int index = 0;
+        for (int i = 0; i < vecs.Length; i++)
+        {
+            float dot = Vector3.Dot(vecs[i], dir);
+            if (dot > max)
+            {
+                max = dot;
+                index = i;
+            }
+        }
+        return vecs[index] + dir.normalized * radius;
+    }
+
+    Vector3 SupportFunction(Vector3 dir, Vector3[] vecs, float radius, out int index)
+    {
+        float max = float.NegativeInfinity;
+        index = 0;
         for (int i = 0; i < vecs.Length; i++)
         {
             float dot = Vector3.Dot(vecs[i], dir);

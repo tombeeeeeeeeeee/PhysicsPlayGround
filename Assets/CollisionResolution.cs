@@ -428,7 +428,6 @@ public class CollisionResolution : MonoBehaviour
 
         Vector3 colUp = (bShape.verticies[bFaceVertices[0]].vert - bShape.verticies[bFaceVertices[1]].vert).normalized;
         Vector3 colRight = cross(colUp, normal);
-        colUp = cross(colRight, normal);
 
         Vector2[] a2D = new Vector2[aFaceVertices.Count];
         Vector2[] b2D = new Vector2[bFaceVertices.Count];

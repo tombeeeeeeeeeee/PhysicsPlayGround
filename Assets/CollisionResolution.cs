@@ -5,6 +5,8 @@ using UnityEngine;
 using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
+
+
 public struct CollisionPacket
 {
     public Vector3 worldContact;
@@ -45,6 +47,7 @@ public struct Simplex
 public class CollisionResolution : MonoBehaviour
 {
 
+    const float COLLISION_FACE_THRESHOLD = -0.0001f;
     public Vector3 gravity = new Vector3(0, -9.8f, 0);
     public GameObject[] testingOrbs;
 
@@ -101,7 +104,7 @@ public class CollisionResolution : MonoBehaviour
 
         collidable.velocity *= 1 - 0.001f;
         collidable.velocity += Time.deltaTime * collidable.invMass * collidable.force;
-        collidable.angularMomentum *= 1 - 0.1f;
+        collidable.angularMomentum *= 1 - 0.01f;
         collidable.angularMomentum += Time.deltaTime * collidable.torque;
 
         collidable.angularVelocity = math.mul(math.transpose(new float3x3(collidable.transform.rotation)), collidable.angularMomentum);
@@ -413,21 +416,22 @@ public class CollisionResolution : MonoBehaviour
         List<int> aFaceVertices = new List<int>();aFaceVertices.Add(aMostIndex);
         List<int> bFaceVertices = new List<int>();bFaceVertices.Add(bMostIndex);
 
-        for(int i = 0; i < aShape.verticies[aMostIndex].edges.Length; i++)
+        for(int i = 0; i < aShape.vertices[aMostIndex].edges.Length; i++)
         {
-            AddFaceVert(-normal, aMostIndex, aShape.verticies[aMostIndex].edges[i], aShape, ref aFaceVertices);
+            AddFaceVert(-normal, aMostIndex, aShape.vertices[aMostIndex].edges[i], aVerts, aShape, ref aFaceVertices);
         }
 
-        for (int i = 0; i < bShape.verticies[bMostIndex].edges.Length; i++)
+        for (int i = 0; i < bShape.vertices[bMostIndex].edges.Length; i++)
         {
-            AddFaceVert(normal, bMostIndex, bShape.verticies[bMostIndex].edges[i], bShape, ref bFaceVertices);
+            AddFaceVert(normal, bMostIndex, bShape.vertices[bMostIndex].edges[i], bVerts, bShape, ref bFaceVertices);
         }
 
         if (aFaceVertices.Count == 1) {contactPoint = aMost; return; }
         if (bFaceVertices.Count == 1) {contactPoint = bMost; return; }
 
-        Vector3 colUp = (bShape.verticies[bFaceVertices[0]].vert - bShape.verticies[bFaceVertices[1]].vert).normalized;
-        Vector3 colRight = cross(colUp, normal);
+        Vector3 colUp = (bVerts[0] - bVerts[1]).normalized;
+        Vector3 colRight = Vector3.Cross(colUp, normal).normalized;
+        colUp = Vector3.Cross(normal, colRight).normalized;
 
         Vector2[] a2D = new Vector2[aFaceVertices.Count];
         Vector2[] b2D = new Vector2[bFaceVertices.Count];
@@ -435,23 +439,15 @@ public class CollisionResolution : MonoBehaviour
 
         for (int i = 0; i < a2D.Length; i++)
         {
-            float x = Vector3.Dot(aShape.verticies[aFaceVertices[i]].vert, colRight);
-            float y = Vector3.Dot(aShape.verticies[aFaceVertices[i]].vert, colUp);
-            if(i ==0)
-            {
-                Vector3 debug3D = aShape.verticies[aFaceVertices[i]].vert;
-                Debug.Log("3D initial x: " + debug3D.x + " y: " + debug3D.y + " z: " + debug3D.z);
-                Debug.Log("2D translation x: " + x + " y: " + y);
-                debug3D = x * colRight + y * colUp;
-                Debug.Log("3D translation x: " + debug3D.x + " y: " + debug3D.y + " z: " + debug3D.z);
-            }
+            float x = Vector3.Dot(aVerts[aFaceVertices[i]], colRight);
+            float y = Vector3.Dot(aVerts[aFaceVertices[i]], colUp);
             a2D[i] = new Vector2(x, y);
         }
 
         for (int i = 0; i < b2D.Length; i++)
         {
-            float x = Vector3.Dot(bShape.verticies[bFaceVertices[i]].vert, colRight);
-            float y = Vector3.Dot(bShape.verticies[bFaceVertices[i]].vert, colUp);
+            float x = Vector3.Dot(bVerts[bFaceVertices[i]], colRight);
+            float y = Vector3.Dot(bVerts[bFaceVertices[i]], colUp);
 
             b2D[i] = new Vector2(x, y);
         }
@@ -471,7 +467,7 @@ public class CollisionResolution : MonoBehaviour
                 float denominator = d.y * b.x - b.y * d.x;
                 if(denominator != 0)
                 {
-                    float numerator = a.y * b.x - b.y * a.x - c.y * b.x + b.y * a.x;
+                    float numerator = a.y * b.x - b.y * a.x - c.y * b.x + b.y * c.x;
                     float t2 = numerator / denominator;
                     if(t2 >= 0 && t2 <= 1)
                     {
@@ -504,6 +500,7 @@ public class CollisionResolution : MonoBehaviour
                 contactPoint += vert.x * colRight + vert.y * colUp;
             }
             contactPoint /= contactPoints.Count;
+            contactPoint += normal * (Vector3.Dot(normal, aMost) + Vector3.Dot(normal, bMost))/2;
         }
         else
         {
@@ -525,6 +522,7 @@ public class CollisionResolution : MonoBehaviour
                 {
                     contactPoint2D = bApproxCentre / b2D.Length;
                     contactPoint = contactPoint2D.x * colRight + contactPoint2D.y * colUp;
+                    contactPoint += normal * (Vector3.Dot(normal, aMost) + Vector3.Dot(normal, bMost)) / 2;
                     return;
                 }
                 aApproxCentre += a2D[i];
@@ -532,20 +530,21 @@ public class CollisionResolution : MonoBehaviour
 
             contactPoint2D = aApproxCentre / a2D.Length;
             contactPoint = contactPoint2D.x * colRight + contactPoint2D.y * colUp;
+            contactPoint += normal * (Vector3.Dot(normal, aMost) + Vector3.Dot(normal, bMost)) / 2;
             return;
         }
     }
 
-    private void AddFaceVert(Vector3 normal, int originIndex, int currIndex, Shape shape, ref List<int>verts)
+    private void AddFaceVert(Vector3 normal, int originIndex, int currIndex, Vector3[] worldSpace, Shape shape, ref List<int>verts)
     {
-        if(Vector3.Dot(normal, shape.verticies[currIndex].vert - shape.verticies[originIndex].vert) > -0.01f)
+        if(Vector3.Dot(normal, (worldSpace[currIndex] - worldSpace[originIndex])) > COLLISION_FACE_THRESHOLD)
         {
             if (!verts.Contains(currIndex))
             {
                 verts.Add(currIndex);
-                for(int i = 0; i < shape.verticies[currIndex].edges.Length; i++)
+                for(int i = 0; i < shape.vertices[currIndex].edges.Length; i++)
                 {
-                    AddFaceVert(normal, originIndex, i, shape, ref verts);
+                    AddFaceVert(normal, originIndex, shape.vertices[currIndex].edges[i], worldSpace, shape, ref verts);
                 }
             }
         }

@@ -13,15 +13,15 @@ public struct Vertex
 [Serializable]
 public struct Shape
 {
-    public Vertex[] verticies;
+    public Vertex[] vertices;
     public float radius;
 
     public Vector3[] ToArray()
     {
-        Vector3[] verts = new Vector3[verticies.Length];
-        for(int i = 0; i < verticies.Length; i++)
+        Vector3[] verts = new Vector3[vertices.Length];
+        for(int i = 0; i < vertices.Length; i++)
         {
-            verts[i] = verticies[i].vert;
+            verts[i] = vertices[i].vert;
         }
         return verts;
     }
@@ -57,7 +57,7 @@ public class Collidable : MonoBehaviour
 
         foreach(Shape shape in shapes)
         {
-            foreach(Vertex vertex in shape.verticies)
+            foreach(Vertex vertex in shape.vertices)
             {
                 Vector3 vertWorld = transform.TransformPoint(vertex.vert);
                 if(Math.Abs(vertWorld.x) + shape.radius > dX) dX = Math.Abs(vertWorld.x) + shape.radius;

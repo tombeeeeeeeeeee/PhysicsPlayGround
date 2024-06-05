@@ -6,7 +6,6 @@ using Unity.Mathematics;
 using static Unity.Mathematics.math;
 
 
-
 public struct CollisionPacket
 {
     public Vector3 worldContact;
@@ -33,32 +32,16 @@ public enum GJKEvolution
     notIntersecting = 2
 }
 
-public struct Simplex
-{
-    public List<Vector3> points;
-
-    public Simplex(int i = 0)
-    {
-        points = new List<Vector3>();
-    }
-}
-
 
 public class CollisionResolution : MonoBehaviour
 {
-
-    const float COLLISION_FACE_THRESHOLD = -0.0001f;
-    public Vector3 gravity = new Vector3(0, -9.8f, 0);
     public GameObject[] testingOrbs;
+
+    const float COLLISION_FACE_THRESHOLD = -0.025f;
+    public Vector3 gravity = new Vector3(0, -9.8f, 0);
 
     public Collidable[] collidables;
 
-
-    // Start is called before the first frame update
-    void Start()
-    {
-
-    }
 
     // Update is called once per frame
     void FixedUpdate()
@@ -72,7 +55,7 @@ public class CollisionResolution : MonoBehaviour
         //Collision Checks
         List<CollisionPacket> collisions = new List<CollisionPacket>();
 
-        for(int iter = 0; iter < 1; iter++)
+        for(int iter = 0; iter < 10; iter++)
         {
             //BroadPhase
             for (int i = 0; i < collidables.Length - 1; i++)
@@ -102,9 +85,9 @@ public class CollisionResolution : MonoBehaviour
             collidable.force += gravity / collidable.invMass;
         }
 
-        collidable.velocity *= 1 - 0.001f;
+        collidable.velocity *= 1 - 0.0001f * collidable.drag;
         collidable.velocity += Time.deltaTime * collidable.invMass * collidable.force;
-        collidable.angularMomentum *= 1 - 0.01f;
+        collidable.angularMomentum *= 1 - 0.01f * collidable.angularDrag;
         collidable.angularMomentum += Time.deltaTime * collidable.torque;
 
         collidable.angularVelocity = math.mul(math.transpose(new float3x3(collidable.transform.rotation)), collidable.angularMomentum);
@@ -129,18 +112,9 @@ public class CollisionResolution : MonoBehaviour
         rotation += new float3x3(collidable.transform.rotation);
         collidable.transform.rotation = OrthonormalizeOrientation(rotation);
 
-        //collidable.invWorldIT = collidable.invBodyIT;
+        collidable.invWorldIT = math.mul(new float3x3(collidable.transform.rotation) , collidable.invBodyIT);
+        collidable.invWorldIT = math.mul(collidable.invWorldIT, math.transpose(collidable.invBodyIT));
 
-        Vector3 invWorldInertiaTensor = new Vector3(collidable.invBodyIT[0][0], collidable.invBodyIT[1][1], collidable.invBodyIT[2][2]);
-        invWorldInertiaTensor = math.mul(collidable.transform.rotation, math.mul(math.conjugate(collidable.transform.rotation), invWorldInertiaTensor));
-        //collidable.invWorldIT = math.mul(new float3x3(collidable.transform.rotation) , collidable.invBodyIT);
-        //collidable.invWorldIT = math.mul(collidable.invWorldIT, math.transpose(collidable.invBodyIT));
-        //collidable.invWorldIT = math.mul(collidable.invBodyIT, math.mul(new float3x3(collidable.transform.rotation), math.transpose(collidable.invBodyIT)));
-        collidable.invWorldIT = new float3x3(
-            invWorldInertiaTensor.x, 0, 0,
-            0, invWorldInertiaTensor.y, 0,
-            0, 0, invWorldInertiaTensor.z
-            );
 
         collidable.torque = Vector3.zero;
         collidable.force = Vector3.zero;
@@ -218,7 +192,7 @@ public class CollisionResolution : MonoBehaviour
         float j = -(1 + elasticCoef) * Vector3.Dot(relativeVelocity, collision.normal) /
             (totalInverseMass + denom);
          
-        if (j < 0) return;
+        if (j <= 0) return;
         
         //Add depenertration to collidable, ensures too much depenertration per frame doesnt occure
         AddDepen(collision.normal * (collision.depth) * collision.objectA.invMass / totalInverseMass, ref collision.objectA.netDepen);
@@ -269,7 +243,7 @@ public class CollisionResolution : MonoBehaviour
     CollisionPacket GJK(Shape a, Shape b, Transform aTransform, Transform bTransform)
     {
         CollisionPacket collision = new CollisionPacket();
-        Simplex simp = new Simplex(0);
+        List<Vector3> simp = new List<Vector3>();
         Vector3[] shapeA, shapeB;
         shapeA = a.ToArray();
         shapeB = b.ToArray();
@@ -308,22 +282,22 @@ public class CollisionResolution : MonoBehaviour
         if (gjking == GJKEvolution.intersecting)
         {
             EPA(ref simp, ref collision, shapeA, a.radius, aTransform, shapeB, b.radius, bTransform);
-            CalculateCollsionPoint(shapeA, a, shapeB, b, simp.points, collision.normal ,out collision.worldContact);
+            CalculateCollsionPoint(shapeA, a, shapeB, b, collision.normal ,out collision.worldContact);
         }
 
         return collision;
     }
 
-    GJKEvolution EvolveSimplex(ref Simplex simp, ref Vector3 direction)
+    GJKEvolution EvolveSimplex(ref List<Vector3> simp, ref Vector3 direction)
     {
-        switch (simp.points.Count)
+        switch (simp.Count)
         {
             case 2:
 
                 // line ab is the line formed by the first two vertices
-                Vector3 ab = simp.points[1] - simp.points[0];
+                Vector3 ab = simp[1] - simp[0];
                 // line a0 is the line from the first vertex to the origin
-                Vector3 dO = simp.points[0] * -1;
+                Vector3 dO = simp[0] * -1;
 
                 if (Vector3.Dot(ab, dO) > 0)
                 {
@@ -334,16 +308,16 @@ public class CollisionResolution : MonoBehaviour
                 }
                 else
                 {
-                    simp.points.RemoveAt(1);
+                    simp.RemoveAt(1);
                     direction = dO;
                 }
 
                 return GJKEvolution.evolving;
 
             case 3:
-                Vector3 ac = simp.points[2] - simp.points[0];
-                ab = simp.points[1] - simp.points[0];
-                dO = simp.points[0] * -1;
+                Vector3 ac = simp[2] - simp[0];
+                ab = simp[1] - simp[0];
+                dO = simp[0] * -1;
 
                 direction = Vector3.Cross(ac, ab);
 
@@ -352,12 +326,12 @@ public class CollisionResolution : MonoBehaviour
                 break;
             case 4:
                 // calculate the three edges of interest
-                Vector3 da = simp.points[0] - simp.points[3];
-                Vector3 db = simp.points[1] - simp.points[3];
-                Vector3 dc = simp.points[2] - simp.points[3];
+                Vector3 da = simp[0] - simp[3];
+                Vector3 db = simp[1] - simp[3];
+                Vector3 dc = simp[2] - simp[3];
 
                 // and the direction to the origin
-                dO = simp.points[3] * -1;
+                dO = simp[3] * -1;
 
                 // check triangles a-b-d, b-c-d, and c-a-d
                 Vector3 abdNorm = Vector3.Cross(da, db);
@@ -366,17 +340,17 @@ public class CollisionResolution : MonoBehaviour
 
                 if (Vector3.Dot(bcdNorm, dO) > 0)
                 {
-                    simp.points.RemoveAt(0);
+                    simp.RemoveAt(0);
                     direction = bcdNorm;
                 }
                 else if (Vector3.Dot(abdNorm, dO) > 0)
                 {
-                    simp.points.RemoveAt(2);
+                    simp.RemoveAt(2);
                     direction = abdNorm;
                 }
                 else if (Vector3.Dot(cadNorm, dO) > 0)
                 {
-                    simp.points.RemoveAt(1);
+                    simp.RemoveAt(1);
                     direction = cadNorm;
                 }
                 else
@@ -393,7 +367,7 @@ public class CollisionResolution : MonoBehaviour
         return GJKEvolution.evolving;
     }
 
-    void CalculateCollsionPoint(Vector3[] aVerts, Shape aShape, Vector3[] bVerts, Shape bShape, List<Vector3> points, Vector3 normal, out Vector3 contactPoint)
+    void CalculateCollsionPoint(Vector3[] aVerts, Shape aShape, Vector3[] bVerts, Shape bShape, Vector3 normal, out Vector3 contactPoint)
     {
         contactPoint = Vector3.zero;
 
@@ -429,7 +403,7 @@ public class CollisionResolution : MonoBehaviour
         if (aFaceVertices.Count == 1) {contactPoint = aMost; return; }
         if (bFaceVertices.Count == 1) {contactPoint = bMost; return; }
 
-        Vector3 colUp = (bVerts[0] - bVerts[1]).normalized;
+        Vector3 colUp = (bVerts[bFaceVertices[0]] - bVerts[bFaceVertices[1]]).normalized;
         Vector3 colRight = Vector3.Cross(colUp, normal).normalized;
         colUp = Vector3.Cross(normal, colRight).normalized;
 
@@ -504,7 +478,7 @@ public class CollisionResolution : MonoBehaviour
         }
         else
         {
-            Vector2 aApproxCentre = Vector2.zero;
+            Vector2 aApproxCentre = a2D[0];
             Vector2 bApproxCentre = Vector2.zero;
 
             for(int i = 0; i < b2D.Length; i++)
@@ -551,9 +525,9 @@ public class CollisionResolution : MonoBehaviour
     }
 
 
-    GJKEvolution AddSupportToSimplex(ref Simplex simp, Vector3 vert, Vector3 dir)
+    GJKEvolution AddSupportToSimplex(ref List<Vector3> simp, Vector3 vert, Vector3 dir)
     {
-        simp.points.Add(vert);
+        simp.Add(vert);
         return Vector3.Dot(dir, vert) >= 0 ? GJKEvolution.evolving : GJKEvolution.notIntersecting;
     }
 
@@ -595,9 +569,9 @@ public class CollisionResolution : MonoBehaviour
         return vecs[index] + dir.normalized * radius;
     }
 
-    void EPA(ref Simplex simp, ref CollisionPacket collision, Vector3[] shapeA, float aRadius, Transform a, Vector3[] shapeB, float bRadius, Transform b)
+    void EPA(ref List<Vector3> simp, ref CollisionPacket collision, Vector3[] shapeA, float aRadius, Transform a, Vector3[] shapeB, float bRadius, Transform b)
     {
-        List<Vector3> polytope = new List<Vector3>(simp.points);
+        List<Vector3> polytope = new List<Vector3>(simp);
         List<int> faces = new List<int>
             {
                 0, 1, 2,

@@ -46,6 +46,8 @@ public class Collidable : MonoBehaviour
     public Vector3 centreOfMass = Vector3.zero;
     public bool isGravitated = false;
     public float elasticCoef = 0.65f;
+    public float drag = 1;
+    public float angularDrag = 5;
 
     // Start is called before the first frame update
     void Start()
@@ -76,7 +78,8 @@ public class Collidable : MonoBehaviour
             );
        }
 
-        invWorldIT = math.mul(math.mul(invBodyIT, new float3x3(transform.rotation)), math.transpose(invBodyIT));
+        invWorldIT = math.mul(new float3x3(transform.rotation), invBodyIT);
+        invWorldIT = math.mul(invWorldIT, math.transpose(invBodyIT));
     }
 
     // Update is called once per frame

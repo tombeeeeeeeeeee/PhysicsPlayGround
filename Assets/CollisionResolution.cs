@@ -94,6 +94,8 @@ public class CollisionResolution : MonoBehaviour
         collidable.angularVelocity = math.mul(collidable.invBodyIT, collidable.angularVelocity);
         collidable.angularVelocity = math.mul(new float3x3(collidable.transform.rotation), collidable.angularVelocity);
 
+        collidable.angularVelocity = math.mul(collidable.invWorldIT, collidable.angularMomentum);
+
         collidable.transform.position += collidable.netDepen;
         collidable.netDepen = Vector3.zero;
 
@@ -112,8 +114,10 @@ public class CollisionResolution : MonoBehaviour
         rotation += new float3x3(collidable.transform.rotation);
         collidable.transform.rotation = OrthonormalizeOrientation(rotation);
 
-        collidable.invWorldIT = math.mul(new float3x3(collidable.transform.rotation) , collidable.invBodyIT);
-        collidable.invWorldIT = math.mul(collidable.invWorldIT, math.transpose(collidable.invBodyIT));
+        collidable.invWorldIT = calculateWorldInertiaTensoreInverse(
+            new float3x3(collidable.transform.rotation), 
+            new Vector3(collidable.invBodyIT[0][0], collidable.invBodyIT[1][1], collidable.invBodyIT[2][2])
+            );
 
 
         collidable.torque = Vector3.zero;
@@ -209,8 +213,6 @@ public class CollisionResolution : MonoBehaviour
         
         collision.objectA.angularMomentum += angularRestitutionA;
         collision.objectB.angularMomentum -= angularRestitutionB;
-
-        //Yes I think you're correct that these shuold be as they are (one plus, one minus) -Finn
     }
 
     void AddDepen(Vector3 newDepen, ref Vector3 currDepen)
@@ -705,6 +707,26 @@ public class CollisionResolution : MonoBehaviour
         {
             edges.Add(new Tuple<int, int>(faces[aVert], faces[bVert]));
         }
+    }
+
+    float3x3 calculateWorldInertiaTensoreInverse(float3x3 orientation, Vector3 invBody)
+    {
+        float3x3 outInverseInertiaTensorWorld = new float3x3();
+
+        outInverseInertiaTensorWorld[0][0] = orientation[0][0] * invBody.x;
+        outInverseInertiaTensorWorld[0][1] = orientation[1][0] * invBody.x;
+        outInverseInertiaTensorWorld[0][2] = orientation[2][0] * invBody.x;
+        
+        outInverseInertiaTensorWorld[1][0] = orientation[0][1] * invBody.y;
+        outInverseInertiaTensorWorld[1][1] = orientation[1][1] * invBody.y;
+        outInverseInertiaTensorWorld[1][2] = orientation[2][1] * invBody.y;
+        
+        outInverseInertiaTensorWorld[2][0] = orientation[0][2] * invBody.z;
+        outInverseInertiaTensorWorld[2][1] = orientation[1][2] * invBody.z;
+        outInverseInertiaTensorWorld[2][2] = orientation[2][2] * invBody.z;
+
+        outInverseInertiaTensorWorld = math.mul(orientation, outInverseInertiaTensorWorld);
+        return outInverseInertiaTensorWorld;
     }
 }
 

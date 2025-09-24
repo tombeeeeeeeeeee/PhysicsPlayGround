@@ -42,12 +42,15 @@ public class CollisionResolution : MonoBehaviour
 
     public Collidable[] collidables;
 
+    public bool OneTick = false;
+    private bool ticked = false;
 
     // Update is called once per frame
     void FixedUpdate()
     {
+        if (OneTick && ticked) return;
         //Intergration Step
-        for(int i = 0; i < collidables.Length; i++)
+        for (int i = 0; i < collidables.Length; i++)
         {
             Intergration(collidables[i]);
         }
@@ -55,7 +58,7 @@ public class CollisionResolution : MonoBehaviour
         //Collision Checks
         List<CollisionPacket> collisions = new List<CollisionPacket>();
 
-        for(int iter = 0; iter < 10; iter++)
+        for (int iter = 0; iter < 30; iter++)
         {
             //BroadPhase
             for (int i = 0; i < collidables.Length - 1; i++)
@@ -72,10 +75,12 @@ public class CollisionResolution : MonoBehaviour
         }
 
         //Collision Resolution
-        foreach(CollisionPacket collision in collisions)
+        foreach (CollisionPacket collision in collisions)
         {
             Resolution(collision);
+            ticked = true;
         }
+
     }
 
     private void Intergration(Collidable collidable)
@@ -115,7 +120,7 @@ public class CollisionResolution : MonoBehaviour
         collidable.transform.rotation = OrthonormalizeOrientation(rotation);
 
         collidable.invWorldIT = calculateWorldInertiaTensoreInverse(
-            new float3x3(collidable.transform.rotation), 
+            new float3x3(collidable.transform.rotation),
             new Vector3(collidable.invBodyIT[0][0], collidable.invBodyIT[1][1], collidable.invBodyIT[2][2])
             );
 
@@ -149,14 +154,22 @@ public class CollisionResolution : MonoBehaviour
     {
         for (int i = 0; i < a.shapes.Count(); i++)
         {
-            for(int j = 0; j < b.shapes.Count(); j++)
+            for (int j = 0; j < b.shapes.Count(); j++)
             {
-                CollisionPacket collision = GJK(a.shapes[i], b.shapes[j], a.transform, b.transform);
+                Shape aShape = a.shapes[i];
+                Shape bShape = b.shapes[j];
+                Transform aTrans = a.transform;
+                Transform bTrans = b.transform;
+
+                CollisionPacket collision = GJK(aShape, bShape, aTrans, bTrans);
+
                 collision.objectA = a;
                 collision.objectB = b;
 
                 if (collision.depth > 0)
+                {
                     collisions.Add(collision);
+                }
             }
         }
     }
@@ -164,53 +177,53 @@ public class CollisionResolution : MonoBehaviour
     private void Resolution(CollisionPacket collision)
     {
         if (collision.depth < 0) return;
-        
+
         //Debuging
         testingOrbs[0].transform.position = collision.worldContact;
 
         //Calculate R for each shape
         Vector3 rA = collision.worldContact - collision.objectA.transform.position;
         Vector3 rB = collision.worldContact - collision.objectB.transform.position;
-        
+
         float totalInverseMass = (collision.objectA.invMass + collision.objectB.invMass);
-        
-        
+
+
         // Relative Vel = Liner Vel and Angular Vel at point of Collision
         Vector3 relativeVelocity =
-              (collision.objectA.velocity + Vector3.Cross(collision.objectA.angularVelocity,rA))
-            - (collision.objectB.velocity + Vector3.Cross(collision.objectB.angularVelocity,rB));
-        
+              (collision.objectA.velocity + Vector3.Cross(collision.objectA.angularVelocity, rA))
+            - (collision.objectB.velocity + Vector3.Cross(collision.objectB.angularVelocity, rB));
+
         //Calculate Average Elasticity
         float elasticCoef = collision.objectA.elasticCoef + collision.objectB.elasticCoef;
         elasticCoef /= 2;
-        
-        
+
+
         Vector3 aDenomComponentVector = math.mul(collision.objectA.invWorldIT, Vector3.Cross(rA, collision.normal));
         Vector3 bDenomComponentVector = math.mul(collision.objectB.invWorldIT, Vector3.Cross(rB, collision.normal));
-        
-        float aDenomComponentFloat = Vector3.Dot(Vector3.Cross(aDenomComponentVector, rA),collision.normal);
-        float bDenomComponentFloat = Vector3.Dot(Vector3.Cross(bDenomComponentVector, rB),collision.normal);
-        
+
+        float aDenomComponentFloat = Vector3.Dot(Vector3.Cross(aDenomComponentVector, rA), collision.normal);
+        float bDenomComponentFloat = Vector3.Dot(Vector3.Cross(bDenomComponentVector, rB), collision.normal);
+
         float denom = aDenomComponentFloat + bDenomComponentFloat;
-        
+
         float j = -(1 + elasticCoef) * Vector3.Dot(relativeVelocity, collision.normal) /
             (totalInverseMass + denom);
-         
+
         if (j <= 0) return;
-        
+
         //Add depenertration to collidable, ensures too much depenertration per frame doesnt occure
         AddDepen(collision.normal * (collision.depth) * collision.objectA.invMass / totalInverseMass, ref collision.objectA.netDepen);
         AddDepen(-collision.normal * (collision.depth) * collision.objectB.invMass / totalInverseMass, ref collision.objectB.netDepen);
-        
-        
+
+
         Vector3 linearRestitution = j * collision.normal;
-        
+
         collision.objectA.velocity += linearRestitution * collision.objectA.invMass;
         collision.objectB.velocity -= linearRestitution * collision.objectB.invMass;
-        
+
         Vector3 angularRestitutionA = Vector3.Cross(rA, linearRestitution);
         Vector3 angularRestitutionB = Vector3.Cross(rB, linearRestitution);
-        
+
         collision.objectA.angularMomentum += angularRestitutionA;
         collision.objectB.angularMomentum -= angularRestitutionB;
     }
@@ -225,20 +238,19 @@ public class CollisionResolution : MonoBehaviour
         {
             currDepen = newDepen + currDepen;
         }
+
         else
         {
-            Vector3 normalNet = Vector3.Normalize(currDepen);
-            float amountAlreadyDepened = Vector3.Dot(normalNet, newDepen);
-            Vector3 changeInNet = currDepen - amountAlreadyDepened * normalNet;
-
-            if (Vector3.Dot(changeInNet, currDepen) < 0)
-            {
-                currDepen = newDepen;
-            }
-            else
-            {
-                currDepen = changeInNet + newDepen;
-            }
+            float xMin = Mathf.Max(Mathf.Abs(newDepen.x), Mathf.Abs(currDepen.x));
+            float yMin = Mathf.Max(Mathf.Abs(newDepen.y), Mathf.Abs(currDepen.y));
+            float zMin = Mathf.Max(Mathf.Abs(newDepen.z), Mathf.Abs(currDepen.z));
+            
+            Vector3 resultant = currDepen + newDepen;
+            resultant.x = Mathf.Clamp(resultant.x, -xMin, xMin);
+            resultant.y = Mathf.Clamp(resultant.y, -yMin, yMin);
+            resultant.z = Mathf.Clamp(resultant.z, -zMin, zMin);
+            
+            currDepen = resultant;
         }
     }
 
@@ -250,7 +262,7 @@ public class CollisionResolution : MonoBehaviour
         shapeA = a.ToArray();
         shapeB = b.ToArray();
 
-        for(int i = 0; i < shapeA.Length; i++)
+        for (int i = 0; i < shapeA.Length; i++)
         {
             shapeA[i] = aTransform.TransformPoint(shapeA[i]);
         }
@@ -284,7 +296,7 @@ public class CollisionResolution : MonoBehaviour
         if (gjking == GJKEvolution.intersecting)
         {
             EPA(ref simp, ref collision, shapeA, a.radius, aTransform, shapeB, b.radius, bTransform);
-            CalculateCollsionPoint(shapeA, a, shapeB, b, collision.normal ,out collision.worldContact);
+            CalculateCollsionPoint(shapeA, a, shapeB, b, collision.normal, out collision.worldContact);
         }
 
         return collision;
@@ -363,21 +375,23 @@ public class CollisionResolution : MonoBehaviour
                 break;
 
             default:
-                Debug.Log("Something is broken");
                 return GJKEvolution.notIntersecting;
         }
         return GJKEvolution.evolving;
     }
 
+
+    ///Determine the points/middle point for collision
     void CalculateCollsionPoint(Vector3[] aVerts, Shape aShape, Vector3[] bVerts, Shape bShape, Vector3 normal, out Vector3 contactPoint)
     {
         contactPoint = Vector3.zero;
 
+        //Find the vert for each shape that is most in the direction of the collision as it will likely be on the responsible face
         int aMostIndex, bMostIndex;
-
         Vector3 aMost = SupportFunction(-normal, aVerts, aShape.radius, out aMostIndex);
         Vector3 bMost = SupportFunction(normal, bVerts, bShape.radius, out bMostIndex);
 
+        //If a shape has one vert it is a sphere and the point on its surface is the point of collision
         if (aVerts.Length == 1)
         {
             contactPoint = aMost;
@@ -389,10 +403,11 @@ public class CollisionResolution : MonoBehaviour
             return;
         }
 
-        List<int> aFaceVertices = new List<int>();aFaceVertices.Add(aMostIndex);
-        List<int> bFaceVertices = new List<int>();bFaceVertices.Add(bMostIndex);
+        //Construct responsible face/edge/vert from each polygon
+        List<int> aFaceVertices = new List<int>(); aFaceVertices.Add(aMostIndex);
+        List<int> bFaceVertices = new List<int>(); bFaceVertices.Add(bMostIndex);
 
-        for(int i = 0; i < aShape.vertices[aMostIndex].edges.Length; i++)
+        for (int i = 0; i < aShape.vertices[aMostIndex].edges.Length; i++)
         {
             AddFaceVert(-normal, aMostIndex, aShape.vertices[aMostIndex].edges[i], aVerts, aShape, ref aFaceVertices);
         }
@@ -402,17 +417,21 @@ public class CollisionResolution : MonoBehaviour
             AddFaceVert(normal, bMostIndex, bShape.vertices[bMostIndex].edges[i], bVerts, bShape, ref bFaceVertices);
         }
 
-        if (aFaceVertices.Count == 1) {contactPoint = aMost; return; }
-        if (bFaceVertices.Count == 1) {contactPoint = bMost; return; }
+        //If the responsible face only has one vert it is the point of collision
+        if (aFaceVertices.Count == 1) { contactPoint = aMost; return; }
+        if (bFaceVertices.Count == 1) { contactPoint = bMost; return; }
 
+
+
+        //Create data from the normal to use for projecting 3D points into a 2D space
         Vector3 colUp = (bVerts[bFaceVertices[0]] - bVerts[bFaceVertices[1]]).normalized;
         Vector3 colRight = Vector3.Cross(colUp, normal).normalized;
         colUp = Vector3.Cross(normal, colRight).normalized;
 
+
+        //Project all points to 2D
         Vector2[] a2D = new Vector2[aFaceVertices.Count];
         Vector2[] b2D = new Vector2[bFaceVertices.Count];
-
-
         for (int i = 0; i < a2D.Length; i++)
         {
             float x = Vector3.Dot(aVerts[aFaceVertices[i]], colRight);
@@ -428,37 +447,39 @@ public class CollisionResolution : MonoBehaviour
             b2D[i] = new Vector2(x, y);
         }
 
+
         List<Vector2> contactPoints = new List<Vector2>();
 
-        for(int i = 0; i < a2D.Length; i++)
+        //Get points where edges intersect
+        for (int i = 0; i < a2D.Length; i++)
         {
             Vector2 a = a2D[i];
             Vector2 b = a2D[(i + 1) % a2D.Length] - a;
 
-            for(int j = 0; j < b2D.Length; j++)
+            for (int j = 0; j < b2D.Length; j++)
             {
                 Vector2 c = b2D[j];
                 Vector2 d = b2D[(j + 1) % b2D.Length] - c;
 
                 float denominator = d.y * b.x - b.y * d.x;
-                if(denominator != 0)
+                if (denominator != 0)
                 {
                     float numerator = a.y * b.x - b.y * a.x - c.y * b.x + b.y * c.x;
                     float t2 = numerator / denominator;
-                    if(t2 >= 0 && t2 <= 1)
+                    if (t2 >= 0 && t2 <= 1)
                     {
                         float t1 = -1;
-                        if(abs(b.x) > abs(b.y))
+                        if (abs(b.x) > abs(b.y))
                         {
                             t1 = c.x + d.x * t2 - a.x;
                             t1 /= b.x;
                         }
-                        else if(b.y != 0)
+                        else if (b.y != 0)
                         {
                             t1 = c.y + d.y * t2 - a.y;
                             t1 /= b.y;
                         }
-                        if(t1 >= 0 && t1 <= 1)
+                        if (t1 >= 0 && t1 <= 1)
                         {
                             Vector2 contact = c + d * t2;
                             contactPoints.Add(contact);
@@ -468,57 +489,46 @@ public class CollisionResolution : MonoBehaviour
             }
         }
 
-        if(contactPoints.Count > 0)
+        //Grab all points inside of the other shapes
+        foreach (Vector2 vert in a2D)
         {
-            contactPoint = Vector3.zero;
-            foreach(Vector2 vert in contactPoints)
+            if (PointWithin2DPolygon(vert, b2D))
             {
-                contactPoint += vert.x * colRight + vert.y * colUp;
+                contactPoints.Add(vert);
             }
-            contactPoint /= contactPoints.Count;
-            contactPoint += normal * (Vector3.Dot(normal, aMost) + Vector3.Dot(normal, bMost))/2;
         }
-        else
+        foreach (Vector2 vert in b2D)
         {
-            Vector2 aApproxCentre = a2D[0];
-            Vector2 bApproxCentre = Vector2.zero;
-
-            for(int i = 0; i < b2D.Length; i++)
+            if (PointWithin2DPolygon(vert, a2D))
             {
-                bApproxCentre += b2D[i];
+                contactPoints.Add(vert);
             }
-            Vector2 contactPoint2D;
-            Vector2 planeNormal = b2D[1] - b2D[0];
-            planeNormal = new Vector2(planeNormal.y, -planeNormal.x);
-            float planeDisplacement = Vector2.Dot(b2D[1], planeNormal);
-            float depthSign = Vector2.Dot(a2D[0], planeNormal) - planeDisplacement;
-            for(int i = 1; i < a2D.Length; i++)
-            {
-                if(sign(depthSign) != sign(Vector2.Dot(a2D[i], planeNormal) - planeDisplacement))
-                {
-                    contactPoint2D = bApproxCentre / b2D.Length;
-                    contactPoint = contactPoint2D.x * colRight + contactPoint2D.y * colUp;
-                    contactPoint += normal * (Vector3.Dot(normal, aMost) + Vector3.Dot(normal, bMost)) / 2;
-                    return;
-                }
-                aApproxCentre += a2D[i];
-            }
-
-            contactPoint2D = aApproxCentre / a2D.Length;
-            contactPoint = contactPoint2D.x * colRight + contactPoint2D.y * colUp;
-            contactPoint += normal * (Vector3.Dot(normal, aMost) + Vector3.Dot(normal, bMost)) / 2;
-            return;
         }
+
+
+        //Find the middle of all these points
+        Vector2 contactPoint2D = CentrePolygon2D(contactPoints);
+        for (int i = 0; i < contactPoints.Count() && i < testingOrbs.Count() - 1; i++)
+        {
+            Vector3 boundingShape = contactPoints[i].x * colRight + contactPoints[i].y * colUp;
+            boundingShape += normal * (Vector3.Dot(normal, aMost) + Vector3.Dot(normal, bMost)) / 2;
+            testingOrbs[i + 1].transform.position = boundingShape;
+        }
+
+
+        //Project point back into 3D space
+        contactPoint = contactPoint2D.x * colRight + contactPoint2D.y * colUp;
+        contactPoint += normal * (Vector3.Dot(normal, aMost) + Vector3.Dot(normal, bMost)) / 2;
     }
 
-    private void AddFaceVert(Vector3 normal, int originIndex, int currIndex, Vector3[] worldSpace, Shape shape, ref List<int>verts)
+    private void AddFaceVert(Vector3 normal, int originIndex, int currIndex, Vector3[] worldSpace, Shape shape, ref List<int> verts)
     {
-        if(Vector3.Dot(normal, (worldSpace[currIndex] - worldSpace[originIndex])) > COLLISION_FACE_THRESHOLD)
+        if (Vector3.Dot(normal, (worldSpace[currIndex] - worldSpace[originIndex])) > COLLISION_FACE_THRESHOLD)
         {
             if (!verts.Contains(currIndex))
             {
                 verts.Add(currIndex);
-                for(int i = 0; i < shape.vertices[currIndex].edges.Length; i++)
+                for (int i = 0; i < shape.vertices[currIndex].edges.Length; i++)
                 {
                     AddFaceVert(normal, originIndex, shape.vertices[currIndex].edges[i], worldSpace, shape, ref verts);
                 }
@@ -669,16 +679,16 @@ public class CollisionResolution : MonoBehaviour
 
         int minTriangle = 0;
         float minDistance = float.MaxValue;
-        for(int i = 0; i < faces.Count(); i+=3)
+        for (int i = 0; i < faces.Count(); i += 3)
         {
             Vector3 a = polytope[faces[i]];
-            Vector3 b = polytope[faces[i+1]];
-            Vector3 c = polytope[faces[i+2]];
+            Vector3 b = polytope[faces[i + 1]];
+            Vector3 c = polytope[faces[i + 2]];
 
-            Vector3 normal = Vector3.Normalize(Vector3.Cross(b-a,c-a));
+            Vector3 normal = Vector3.Normalize(Vector3.Cross(b - a, c - a));
             float distance = Vector3.Dot(normal, a);
 
-            if(distance < 0 )
+            if (distance < 0)
             {
                 normal *= -1;
                 distance *= -1;
@@ -686,7 +696,7 @@ public class CollisionResolution : MonoBehaviour
             Vector4 packet = new Vector4(normal.x, normal.y, normal.z, distance);
             normals.Add(packet);
 
-            if(distance < minDistance)
+            if (distance < minDistance)
             {
                 minTriangle = i / 3;
                 minDistance = distance;
@@ -698,7 +708,7 @@ public class CollisionResolution : MonoBehaviour
 
     void AddIfUniqueEdge(ref List<Tuple<int, int>> edges, List<int> faces, int aVert, int bVert)
     {
-        bool contains = edges.Contains(new Tuple<int, int>(faces[bVert], faces[aVert]) );
+        bool contains = edges.Contains(new Tuple<int, int>(faces[bVert], faces[aVert]));
         if (contains)
         {
             edges.Remove(new Tuple<int, int>(faces[bVert], faces[aVert]));
@@ -709,6 +719,60 @@ public class CollisionResolution : MonoBehaviour
         }
     }
 
+    bool PointWithin2DPolygon(Vector2 point, Vector2[] polygon)
+    {
+        if (polygon.Count() == 1) return false;
+
+        for (int i = 1; i < polygon.Count() - 1; i++)
+        {
+            Vector2 currentPlane = polygon[i] - polygon[0];
+            currentPlane = new Vector2(-currentPlane.y, currentPlane.x);
+            int currentSign = (int)Mathf.Sign(DistanceFromPlane(point, currentPlane, polygon[0]));
+
+            Vector2 oppositePlane = polygon[i + 1] - polygon[0];
+            oppositePlane = new Vector2(-oppositePlane.y, oppositePlane.x);
+            int oppositeSign = (int)Mathf.Sign(DistanceFromPlane(point, oppositePlane, polygon[0]));
+
+            if (oppositeSign != currentSign)
+            {
+                Vector2 edgePlane = polygon[i] - polygon[i + 1];
+                edgePlane = new Vector2(-edgePlane.y, edgePlane.x);
+                int edgeSign = (int)Mathf.Sign(DistanceFromPlane(point, edgePlane, polygon[i]));
+                if (edgeSign != oppositeSign) return false;
+                else return true;
+            }
+
+        }
+
+        return false;
+    }
+
+    float DistanceFromPlane(Vector2 point, Vector2 planeNormal, Vector2 pointOnPlane)
+    {
+        return Vector2.Dot(point, planeNormal) - Vector2.Dot(pointOnPlane, planeNormal);
+    }
+
+    Vector2 CentrePolygon2D(List<Vector2> poly)
+    {
+        if (poly == null || poly.Count == 0) return Vector2.zero;
+
+        Vector2 centre = new Vector2(0.0f, 0.0f);
+        float weight = 0.0f;
+        for (int i = 0; i < poly.Count(); i++)
+        {
+            int previous = (i != 0) ? i - 1 : poly.Count() - 1;
+            int next = (i != poly.Count() - 1) ? i + 1 : 0;
+            float vertWeight = (poly[i] - poly[previous]).magnitude + (poly[i] - poly[next]).magnitude;
+            centre += poly[i] * vertWeight;
+            weight += vertWeight;
+        }
+        if(weight == 0.0f)
+        {
+            return poly[0];
+        }
+        return centre /= weight;
+    }
+
     float3x3 calculateWorldInertiaTensoreInverse(float3x3 orientation, Vector3 invBody)
     {
         float3x3 outInverseInertiaTensorWorld = new float3x3();
@@ -716,11 +780,11 @@ public class CollisionResolution : MonoBehaviour
         outInverseInertiaTensorWorld[0][0] = orientation[0][0] * invBody.x;
         outInverseInertiaTensorWorld[0][1] = orientation[1][0] * invBody.x;
         outInverseInertiaTensorWorld[0][2] = orientation[2][0] * invBody.x;
-        
+
         outInverseInertiaTensorWorld[1][0] = orientation[0][1] * invBody.y;
         outInverseInertiaTensorWorld[1][1] = orientation[1][1] * invBody.y;
         outInverseInertiaTensorWorld[1][2] = orientation[2][1] * invBody.y;
-        
+
         outInverseInertiaTensorWorld[2][0] = orientation[0][2] * invBody.z;
         outInverseInertiaTensorWorld[2][1] = orientation[1][2] * invBody.z;
         outInverseInertiaTensorWorld[2][2] = orientation[2][2] * invBody.z;
